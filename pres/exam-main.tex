@@ -1,0 +1,104 @@
+% !TeX TS-program = pdflatex
+% !TeX encoding = UTF-8
+% !TeX spellcheck = en_GB
+% !TeX root = exam-main.tex
+\documentclass[]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage[utf8]{inputenc}
+\usepackage{babel}
+
+% ------------------ %
+%% Presentation settings %%
+\usepackage{appendixnumberbeamer}
+%\mode<presentation>
+\usetheme[progressbar=foot,numbering=counter]{metropolis}
+%\useoutertheme[right]{sidebar}
+\setbeamercovered{dynamic}
+%\setbeamertemplate{blocks}[default]%[shadow=true]
+\setbeamertemplate{sections/subsections in toc}[circle]
+\setbeamertemplate{items}[circle]
+\setbeamertemplate{navigation symbols}{}
+\metroset{block=fill}
+
+%\mode<all>
+% ------------------ %
+%% Floating objects %%
+\graphicspath{{../r/plots/},{./Figures/}}
+%\usepackage{booktabs}
+%\usepackage{caption}
+%\captionsetup{format=hang,labelsep=colon}%,font={small,rm},labelfont={sf,bf}}
+%\captionsetup[table]{skip=-0.9\medskipamount,position=top}
+% ------------------ %
+%% Mathematical stuffs %%
+%\usepackage{mathtools}
+%\newcommand{\numberset}{\mathbb}
+%\newcommand{\R}{\numberset{R}}
+%\DeclareMathOperator{\sign}{sign}
+%\DeclareMathOperator*{\argmin}{arg\,min}
+%\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+%\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+%\DeclarePairedDelimiter{\set}{\{}{\}}
+%\renewcommand{\epsilon}{\varepsilon}
+%\theoremstyle{definition}
+%\newtheorem{defs}{Definition}
+%\theoremstyle{plain}
+%\newtheorem{thm}{Theorem}
+% ------------------ %
+%% Drawings %%
+\usepackage{pgfplots} % + tikz
+\pgfplotsset{compat=newest}
+\usetikzlibrary{shapes,calc}
+% ------------------ %
+%% Code %%
+% ------------------ %
+%% Numbers %%
+%\usepackage{siunitx}
+%\sisetup{%
+%	output-decimal-marker={.},group-separator={\,},%
+%	%	round-mode=places,round-precision=6,%
+%	table-parse-only,table-number-alignment=center%
+%}
+% ------------------ %
+%% Pseudo-code %%
+%\usepackage[ruled,linesnumbered]{algorithm2e}
+%\SetNlSty{texttt}{}{}
+%\SetKw{Or}{or}
+%\SetKw{And}{and}
+%\SetKw{Not}{not}
+% ------------------ %
+%% Printing the presentation %%
+%\usepackage{pgfpages}
+%\pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
+% ------------------ %
+%% Presentation cover %%
+\title{Presentation for a lab report}
+\subtitle{Using \LaTeX{} beamer}
+\author{David Nardi}
+\date{June 11, 2024}
+\institute[UniFi]{MSc in AI, University of Florence}
+%\logo{\includegraphics[width=0.2\textwidth]{./Figures/logo}}
+%\titlegraphic{\includegraphics{./Figures/logo}}
+% ------------------ %
+%\usepackage{showframe}
+\begin{document}
+
+\pdfbookmark[1]{Title page}{cover}
+\maketitle
+
+% ------------------------------- %
+\input{./Sections/sec1.tex}
+% ------------------------------- %
+%\appendix
+%{\setbeamercolor{palette primary}{fg=black,bg=white}
+%\begin{frame}[standout]
+%%Thank you for your kindly attention!
+%Questions?
+%\end{frame}
+%}
+% ------------------------------- %
+\input{./Sections/exam-refs.tex}
+\input{./Sections/exam-backup.tex}
+
+\end{document}
