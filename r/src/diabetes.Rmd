@@ -1,0 +1,37 @@
+---
+title: "Diabetes dataset"
+output: html_document
+date: "2024-05-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("utils.R")
+
+plots.dir <- "../plots/"
+```
+
+## Dataset
+
+```{r}
+diab.5050 <- read.csv("../data/diab_binary_5050.csv")
+# diab.5050$Diabetes_binary <- 2 * diab.5050$Diabetes_binary - 1
+
+target <- 1
+dataset.distrib(diab.5050$Diabetes_binary)
+```
+
+```{r}
+boxplot(scale(diab.5050[,-target]))
+```
+
+
+## Logistic regression
+
+```{r}
+log <- glm(Diabetes_binary ~ ., data=diab.5050, family="binomial")
+
+summary(log)
+first.metrics(2 * diab.5050$Diabetes_binary - 1, ifelse(log$fitted.values > 0.5, 1, -1))
+```
+
