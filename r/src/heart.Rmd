@@ -42,8 +42,38 @@ summary(heart[,-target])
 ```
 
 ```{r}
-
+IQR(scale(heart$age))
+quantile(scale(heart$age), probs=c(0.25,0.75))
 ```
+
+```{r}
+boxplot.stats(scale(heart$chol))$out
+```
+
+```{r}
+heatmap(cor(heart[,-target]), Colv=NA, Rowv=NA)
+```
+
+
+```{r}
+n <- nrow(heart)
+
+set.seed(111)
+train.idx <- sample(n, n - floor(n / 3), replace=FALSE)
+
+train <- heart[train.idx,]
+test <- heart[-train.idx,]
+```
+
+
+
+## Clustering
+
+```{r}
+set.seed(111)
+heart.clust <- kmeans(heart[,-target], 2, nstart=20)
+```
+
 
 
 ## Logistic regression
@@ -69,11 +99,55 @@ legend("bottomright", legend=colnames(heart[,-target]), cex=0.8)
 ```
 
 
-## Cluster analysis
-
-Find subgroups in variables
+## Decision tree
 
 ```{r}
-
+library(rpart)
+library(rpart.plot)
 ```
+
+```{r}
+tree <- rpart::rpart(target ~ ., data=heart, method="class",
+                     control=rpart.control(minsplit=10, cp=0))
+
+tree2 <- rpart::rpart(target ~ ., data=heart, method="class",
+                     control=rpart.control(minsplit=10, cp=0.01))
+
+mincp <- tree$cptable[which.min(tree$cptable[,"xerror"]), "CP"]
+
+tree.pr <- rpart::prune(tree, cp=mincp)
+```
+
+```{r}
+first.metrics(train$Outcome, predict(tree, type="class"),
+              test$Outcome, predict(tree, type="class", newdata=test), FALSE)
+
+paste0("Terminal nodes: ", sum(tree$frame$var == "<leaf>"))
+```
+
+```{r}
+## pruned tree
+rpart.plot(tree.pr)
+rpart.plot(tree2)
+```
+
+
+
+
+## Tree boosting
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -104,37 +104,37 @@ first.metrics <- function(train.true, train.pred, test.true=NULL, test.pred=NULL
 ## Cross-Validation
 
 # adaboost cross-validation
-adaboost.cv <- function(M.max, full.train, nfolds, response, lam=1, bag=1, seed=111) {
-  target <- which(colnames(full.train) == response)
-
-  myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
-
-  folds.metrics <- matrix(NA, M.max, nfolds)
-
-  # set.seed(seed)  # reproducibility due to bootstrapping
-  for (i in 1:nfolds) {
-    # reproducibility due to bootstrapping
-    if (bag < 1) {set.seed(seed)}
-
-    data.train <- full.train[myfolds != i,]  # training data
-    data.val <- full.train[myfolds == i,]  # validation data
-
-    # compute validation error for each fold for each round of boosting
-    folds.metrics[,i] <- {
-      # fit model, package ada
-      mod.adaboost <- ada::ada(x=as.matrix(data.train[,-target]), y=as.factor(data.train[,target]),
-                               test.x=as.matrix(data.val[,-target]), test.y=as.factor(data.val[,target]),
-                               loss="exponential", type="discrete",
-                               iter=M.max, nu=lam, bag.frac=bag)
-
-      mod.adaboost$model$errs[,3]
-    }
-
-  }
-
-  # compute error rate for each value in grid
-  rowMeans(folds.metrics)
-}
+# adaboost.cv <- function(M.max, full.train, nfolds, response, lam=1, bag=1, seed=111) {
+#   target <- which(colnames(full.train) == response)
+# 
+#   myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
+# 
+#   folds.metrics <- matrix(NA, M.max, nfolds)
+# 
+#   # set.seed(seed)  # reproducibility due to bootstrapping
+#   for (i in 1:nfolds) {
+#     # reproducibility due to bootstrapping
+#     if (bag < 1) {set.seed(seed)}
+# 
+#     data.train <- full.train[myfolds != i,]  # training data
+#     data.val <- full.train[myfolds == i,]  # validation data
+# 
+#     # compute validation error for each fold for each round of boosting
+#     folds.metrics[,i] <- {
+#       # fit model, package ada
+#       mod.adaboost <- ada::ada(x=as.matrix(data.train[,-target]), y=as.factor(data.train[,target]),
+#                                test.x=as.matrix(data.val[,-target]), test.y=as.factor(data.val[,target]),
+#                                loss="exponential", type="discrete",
+#                                iter=M.max, nu=lam, bag.frac=bag)
+# 
+#       mod.adaboost$model$errs[,3]
+#     }
+# 
+#   }
+# 
+#   # compute error rate for each value in grid
+#   rowMeans(folds.metrics)
+# }
 
 
 ## Data generating process generation
