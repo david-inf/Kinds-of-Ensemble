@@ -13,6 +13,8 @@ plots.dir <- "../plots/"
 
 ## Dataset
 
+Binary classification problem
+
 ```{r}
 diab.5050 <- read.csv("../data/diab_binary_5050.csv")
 # diab.5050$Diabetes_binary <- 2 * diab.5050$Diabetes_binary - 1

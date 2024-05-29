@@ -11,14 +11,26 @@ source("utils.R")
 plots.dir <- "../plots/"
 ```
 
+```{r}
+library(RColorBrewer)
+```
+
+```{r}
+
+```
+
 
 ## Dataset
 
+Binary classification problem
+- No disease
+- Disease
+
 ```{r}
-heart <- read.csv("../data/heart.csv")
+dat <- read.csv("../data/heart.csv")
 
 target <- 14
-dataset.distrib(heart[,target])
+dataset.distrib(dat[,target])
 ```
 
 - age
@@ -36,9 +48,9 @@ dataset.distrib(heart[,target])
 - thal: 0 = normal; 1 = fixed defect; 2 = reversable defect
 
 ```{r}
-boxplot(scale(heart[,-target]))
+boxplot(scale(dat[,-target]))
 
-summary(heart[,-target])
+summary(dat[,-target])
 ```
 
 ```{r}
@@ -56,13 +68,13 @@ heatmap(cor(heart[,-target]), Colv=NA, Rowv=NA)
 
 
 ```{r}
-n <- nrow(heart)
+n <- nrow(dat)
 
 set.seed(111)
 train.idx <- sample(n, n - floor(n / 3), replace=FALSE)
 
-train <- heart[train.idx,]
-test <- heart[-train.idx,]
+train <- dat[train.idx,]
+test <- dat[-train.idx,]
 ```
 
 
@@ -82,21 +94,24 @@ heart.clust <- kmeans(heart[,-target], 2, nstart=20)
 library(glmnet)
 ```
 
-```{r}
-logist <- glm(target ~ ., data=heart, family="binomial")
+### Ridge regression
 
-summary(logist)
-first.metrics(2 * heart$target - 1, ifelse(logist$fitted.values > 0.5, 1, -1))
+```{r}
+logist.reg <- cv.glmnet(model.matrix( ~ . -1, train[,-target]), as.factor(train[,target]),
+                     intercept=TRUE, family="binomial", alpha=0)
 ```
 
 ```{r}
-logist.reg <- glmnet(as.matrix(heart[,-target]), heart[,target], family="binomial", alpha=0)
+plot(logist.reg)
 ```
 
 ```{r}
-plot(logist.reg, xvar="lambda")
-legend("bottomright", legend=colnames(heart[,-target]), cex=0.8)
+first.metrics(2*train$target-1,
+              2*as.numeric(predict(logist.reg, newx=model.matrix(~.-1, train[,-target]), type="class", s="lambda.min"))-1,
+              2*test$target-1,
+              2*as.numeric(predict(logist.reg, newx=model.matrix(~.-1, test[,-target]), type="class", s="lambda.min"))-1)
 ```
+
 
 
 ## Decision tree
@@ -107,30 +122,41 @@ library(rpart.plot)
 ```
 
 ```{r}
-tree <- rpart::rpart(target ~ ., data=heart, method="class",
-                     control=rpart.control(minsplit=10, cp=0))
-
-tree2 <- rpart::rpart(target ~ ., data=heart, method="class",
-                     control=rpart.control(minsplit=10, cp=0.01))
+tree <- rpart::rpart(target ~ ., data=train, method="class",
+                     control=rpart.control(minsplit=20, cp=0, xval=5))
 
 mincp <- tree$cptable[which.min(tree$cptable[,"xerror"]), "CP"]
 
 tree.pr <- rpart::prune(tree, cp=mincp)
+
+plotcp(tree)
+mincp
 ```
 
+Grown tree
+
 ```{r}
-first.metrics(train$Outcome, predict(tree, type="class"),
-              test$Outcome, predict(tree, type="class", newdata=test), FALSE)
+first.metrics(2*train$target-1, 2*as.numeric(predict(tree, type="class"))-3,
+              2*test$target-1, 2*as.numeric(predict(tree, type="class", newdata=test[,-target]))-3)
 
 paste0("Terminal nodes: ", sum(tree$frame$var == "<leaf>"))
 ```
 
+Pruned tree
+
 ```{r}
-## pruned tree
 rpart.plot(tree.pr)
-rpart.plot(tree2)
+
+
+first.metrics(2*train$target-1, 2*as.numeric(predict(tree.pr, type="class"))-3,
+              2*test$target-1, 2*as.numeric(predict(tree.pr, type="class", newdata=test[,-target]))-3)
+
+paste0("Terminal nodes: ", sum(tree.pr$frame$var == "<leaf>"))
 ```
 
+
+
+## Random forest
 
 
 
