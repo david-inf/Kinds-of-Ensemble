@@ -9,6 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 source("utils.R")
 
 plots.dir <- "../plots/"
+colors.biasvar <- c("#34558b", "#800080")
 ```
 
 ```{r}
@@ -27,9 +28,18 @@ Binary classification problem
 - Disease
 
 ```{r}
-dat <- read.csv("../data/heart.csv")
+dat <- read.csv("../data/apple_quality.csv")
+dat <- dat[-nrow(dat),-1]
+names(dat)[ncol(dat)] <- "Outcome"
+target <- which(colnames(dat) == "Outcome")
+dat <- na.omit(dat)
 
-target <- 14
+dat$Outcome[dat$Outcome == "bad"] <- -1
+dat$Outcome[dat$Outcome == "good"] <- 1
+dat$Outcome <- as.factor(dat$Outcome)
+dat$Acidity <- as.numeric(dat$Acidity)
+
+target <- 8
 dataset.distrib(dat[,target])
 ```
 
@@ -66,6 +76,7 @@ boxplot.stats(scale(heart$chol))$out
 heatmap(cor(heart[,-target]), Colv=NA, Rowv=NA)
 ```
 
+### Train-test split
 
 ```{r}
 n <- nrow(dat)
@@ -114,7 +125,46 @@ first.metrics(2*train$target-1,
 
 
 
+## kNN
+
+k-nearest neighbor classifier
+
+```{r}
+library(FNN)
+```
+
+Choose optimal k
+
+```{r}
+knn.cv.err <- myknn.cv(train, 5, target)
+
+k.cross <- which.min(knn.cv.err)
+```
+
+```{r}
+plot(seq(sqrt(nrow(train) * 2)), knn.cv.err, type="l")
+```
+
+### Final model
+
+```{r}
+knn.train <- FNN::knn(train=train[,-target], test=train[,-target],
+                    cl=train[,target], k=k.cross)
+
+knn.test <- FNN::knn(train=train[,-target], test=test[,-target],
+                     cl=train[,target], k=k.cross)
+```
+
+```{r}
+first.metrics(train[,target], knn.train,
+              test[,target], knn.test)
+```
+
+
+
 ## Decision tree
+
+Decision tree classifier
 
 ```{r}
 library(rpart)
@@ -122,11 +172,10 @@ library(rpart.plot)
 ```
 
 ```{r}
-tree <- rpart::rpart(target ~ ., data=train, method="class",
-                     control=rpart.control(minsplit=20, cp=0, xval=5))
+tree <- rpart::rpart(Outcome ~ ., data=train, method="class",
+                     control=rpart.control(minsplit=20, cp=0, xval=10))
 
 mincp <- tree$cptable[which.min(tree$cptable[,"xerror"]), "CP"]
-
 tree.pr <- rpart::prune(tree, cp=mincp)
 
 plotcp(tree)
@@ -136,20 +185,21 @@ mincp
 Grown tree
 
 ```{r}
-first.metrics(2*train$target-1, 2*as.numeric(predict(tree, type="class"))-3,
-              2*test$target-1, 2*as.numeric(predict(tree, type="class", newdata=test[,-target]))-3)
+first.metrics(train$Outcome, predict(tree, type="class"),
+              test$Outcome, predict(tree, type="class", newdata=test[,-target]))
 
 paste0("Terminal nodes: ", sum(tree$frame$var == "<leaf>"))
 ```
 
+### Final model
+
 Pruned tree
 
 ```{r}
-rpart.plot(tree.pr)
+# rpart.plot(tree.pr)
 
-
-first.metrics(2*train$target-1, 2*as.numeric(predict(tree.pr, type="class"))-3,
-              2*test$target-1, 2*as.numeric(predict(tree.pr, type="class", newdata=test[,-target]))-3)
+first.metrics(train$Outcome, predict(tree.pr, type="class"),
+              test$Outcome, predict(tree.pr, type="class", newdata=test[,-target]))
 
 paste0("Terminal nodes: ", sum(tree.pr$frame$var == "<leaf>"))
 ```
@@ -158,9 +208,178 @@ paste0("Terminal nodes: ", sum(tree.pr$frame$var == "<leaf>"))
 
 ## Random forest
 
+```{r}
+library(randomForest)
+```
+
+### Grow the forest
+
+```{r}
+set.seed(111)
+rf.grown <- randomForest(x=train[,-target], y=train[,target],
+                         importance=TRUE)
+
+rf.ntree <- which.min(rf.grown$err.rate[,"OOB"])
+paste0("Forest trees: ", rf.ntree)
+```
+
+Diagnostic
+
+```{r}
+rf.grown
+
+plot(rf.grown)
+
+plot(seq(rf.grown$ntree), rf.grown$err.rate[,"OOB"], type="l", lwd=3,
+     xlab="ntree", ylab="OOB error")
+abline(v=rf.ntree, lwd=2, lty=3)
+```
+
+### Final model
+
+```{r}
+set.seed(111)
+rf.opt <- randomForest(x=train[,-target], y=train[,target],
+                       xtest=test[,-target], ytest=test[,target],
+                       importance=TRUE, ntree=rf.ntree)
+```
+
+```{r}
+paste0("Train score: ", sum(diag(rf.opt$confusion)) / length(train[,target]))
+paste0("Test score: ", sum(diag(rf.opt$test$confusion)) / length(test[,target]))
+```
+
+### Variable importance
+
+```{r}
+# pdf("./plots/rf-vip-apple.pdf")
+varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5)
+# dev.off()
+# importance(rf, type=1)
+```
 
 
-## Tree boosting
+
+## AdaBoost
+
+```{r}
+library(ada)
+```
+
+```{r}
+# ada.stump <- rpart.control(maxdepth=1,cp=-1,minsplit=0,xval=0)
+# ada.tree <- rpart.control(cp=-1, minsplit=0, xval=0, maxdepth=2)
+ada.M <- 1000
+ada.nu <- 0.1
+ada.bag <- 0.5
+```
+
+### Boost the trees
+
+```{r}
+set.seed(111)
+adaboost <- ada::ada(x=as.matrix(train[,-target]),
+                     y=train[,target],
+                     test.x=as.matrix(test[,-target]),
+                     test.y=test[,target],
+                     loss="exponential", type="discrete",
+                     iter=ada.M, nu=ada.nu, bag.frac=ada.bag)
+
+adaboost.cv.err <- adaboost.cv(ada.M, train, 5, target, ada.nu, ada.bag)
+M.cross <- which.min(adaboost.cv.err)
+paste0("Boosting trees: ", M.cross)
+```
+
+```{r}
+matplot(seq(ada.M), cbind(adaboost$model$errs[,1], adaboost.cv.err),
+        type=c("l", "l"), lty=c(1, 1), lwd=3, col=colors.biasvar, log="x",
+        xlab="Rounds of boosting", ylab="Error rate",
+        main="Bias-Variance tradeoff", ylim=c(0, 0.25))
+
+# lines(adaboost.st$model$errs[,3], lty=1, lwd=3, col="purple")
+
+abline(v=M.cross, lty=2, lwd=3)
+
+# abline(h=tree.test.err, lty=3, lwd=2)
+# text(x=20, y=tree.test.err*0.96, cex=1.3,
+#      paste0(sum(tree$frame$var == "<leaf>"), "-node tree"))
+
+# abline(h=adaboost.st$model$errs[1,1], lty=3, lwd=2)
+# text(x=12, y=adaboost.st$model$errs[1,1]*0.96, "Single stump", cex=0.85)
+
+legend("bottomleft", legend=c("Train", "CV", paste("M*=", M.cross, sep="")),
+       col=c(colors.biasvar, "black"),
+       lty=c(1, 1, 2), lwd=3, cex=1.5, bg="white")
+
+
+plot(adaboost, FALSE, TRUE)
+```
+
+### Final model
+
+```{r}
+set.seed(111)
+adaboost.opt <- ada::ada(x=as.matrix(train[,-target]),
+                         y=train[,target],
+                         test.x=as.matrix(test[,-target]),
+                         test.y=test[,target],
+                         loss="exponential", type="discrete",
+                         iter=M.cross, nu=ada.nu, bag.frac=ada.bag)
+```
+
+```{r}
+summary(adaboost.opt)
+
+# plot(adaboost.opt, FALSE, TRUE)
+
+first.metrics(train$Outcome, predict(adaboost.opt, newdata=train, type="vector"),
+              test$Outcome, predict(adaboost.opt, newdata=test, type="vector"))
+```
+
+### Variable importance
+
+```{r}
+boost.avgvip <- adaboost.vip(ncol(dat), target, train, M.cross,
+                                         ada.nu, ada.bag)
+boost.avgvip <- sort(boost.avgvip)
+```
+
+```{r}
+# pdf("./plots/ada-vip-apple.pdf")
+dotchart(as.numeric(boost.avgvip),
+         names(boost.avgvip),
+         main="Average Variable Importance", pch=19, xlab="Score", pt.cex=1.5)
+# dev.off()
+```
+
+In base allo stato di deperibilità (Ripeness) la RF determina de è buona o cattiva, AdaBoost in base alla conseguenza che è la croccantezza (Crunchiness)
+
+
+
+## Super learner
+
+Learners:
+- `SL.mean`
+- 
+
+```{r}
+library(SuperLearner)
+```
+
+```{r}
+# set.seed(111)  # only if shuffle=TRUE
+sl1 <- SuperLearner(Y=as.numeric(train[,target]),
+                    X=train[,-target], family=binomial(),
+                    SL.library=c("SL.mean"),
+                    cvControl=list(V=5, shuffle=FALSE))
+
+sl1
+```
+
+
+
+
+
 
 
 

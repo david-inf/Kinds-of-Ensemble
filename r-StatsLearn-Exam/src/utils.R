@@ -103,38 +103,91 @@ first.metrics <- function(train.true, train.pred, test.true=NULL, test.pred=NULL
 
 ## Cross-Validation
 
+# knn cross-validation
+myknn.cv <- function(full.train, nfolds, target, k.grid=NULL) {
+  if (is.null(k.grid)) {
+    k.grid <- seq(sqrt(nrow(full.train) * 2))
+  }
+
+  myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
+  
+  folds.err <- matrix(NA, length(k.grid), nfolds)
+  
+  for (i in 1:nfolds) {
+    data.train <- full.train[myfolds != i,]  # training data
+    data.val  <- full.train[myfolds == i,]  # validation data
+    
+    # per ogni fold calcola per ogni scenario il MSE
+    folds.err[,i] <- sapply(k.grid,
+                            function(k) {
+                              # fit model
+                              mod.knn <- FNN::knn(train=data.train[,-target],
+                                                  test=data.val[,-target],
+                                                  cl=data.train[,target], k=k)
+
+                              # compute CV error
+                              mean(mod.knn != data.val[,target])
+                            })
+  }
+  
+  rowMeans(folds.err)
+}
+
 # adaboost cross-validation
-# adaboost.cv <- function(M.max, full.train, nfolds, response, lam=1, bag=1, seed=111) {
-#   target <- which(colnames(full.train) == response)
-# 
-#   myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
-# 
-#   folds.metrics <- matrix(NA, M.max, nfolds)
-# 
-#   # set.seed(seed)  # reproducibility due to bootstrapping
-#   for (i in 1:nfolds) {
-#     # reproducibility due to bootstrapping
-#     if (bag < 1) {set.seed(seed)}
-# 
-#     data.train <- full.train[myfolds != i,]  # training data
-#     data.val <- full.train[myfolds == i,]  # validation data
-# 
-#     # compute validation error for each fold for each round of boosting
-#     folds.metrics[,i] <- {
-#       # fit model, package ada
-#       mod.adaboost <- ada::ada(x=as.matrix(data.train[,-target]), y=as.factor(data.train[,target]),
-#                                test.x=as.matrix(data.val[,-target]), test.y=as.factor(data.val[,target]),
-#                                loss="exponential", type="discrete",
-#                                iter=M.max, nu=lam, bag.frac=bag)
-# 
-#       mod.adaboost$model$errs[,3]
-#     }
-# 
-#   }
-# 
-#   # compute error rate for each value in grid
-#   rowMeans(folds.metrics)
-# }
+adaboost.cv <- function(M.max, full.train, nfolds, target, lam=1, bag=1, seed=111) {
+  myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
+
+  folds.metrics <- matrix(NA, M.max, nfolds)
+
+  # reproducibility due to subsampling
+  # if (bag < 1) {set.seed(seed)}
+  for (i in 1:nfolds) {
+    if (bag < 1) {set.seed(seed)}
+
+    data.train <- full.train[myfolds != i,]  # training data
+    data.val <- full.train[myfolds == i,]  # validation data
+
+    # compute validation error for each fold for each round of boosting
+    folds.metrics[,i] <- {
+      # fit model, package ada
+      mod.adaboost <- ada::ada(x=as.matrix(data.train[,-target]),
+                               y=data.train[,target],
+                               test.x=as.matrix(data.val[,-target]),
+                               test.y=data.val[,target],
+                               loss="exponential", type="discrete",
+                               iter=M.max, nu=lam, bag.frac=bag)
+
+      mod.adaboost$model$errs[,3]
+    }
+
+  }
+
+  # compute error rate for each value in grid
+  rowMeans(folds.metrics)
+}
+
+
+## AdaBoost average variable importance
+
+adaboost.vip <- function(nvars, target, train, M, nu, bag, seed=111) {
+  vars.boost <- rep(0, nvars - 1)  # sum of importances
+  avg.run <- 30  # runs
+
+  set.seed(seed)
+  for (i in 1:avg.run) {
+    # for each m the bootstrap is different
+    boost.vip.mod <- ada::ada(x=as.matrix(train[,-target]), y=train[,target],
+                              loss="exponential", type="discrete",
+                              iter=M, nu=nu, bag.frac=bag)
+    # get current importances
+    boost.vip <- varplot(boost.vip.mod, plot.it=FALSE, type="scores")
+    # set scores order by variable name
+    vars.boost <- vars.boost + as.numeric(boost.vip[order(names(boost.vip))]) / avg.run
+  }
+
+  names(vars.boost) <- sort(names(train[,-target]))  # add variable names
+  return(vars.boost)
+}
 
 
 ## Data generating process generation
