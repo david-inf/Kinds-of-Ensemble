@@ -6,22 +6,25 @@ dataset.distrib <- function(y) {
   return(table(y) / length(y))
 }
 
+# histograms
+manyhist <- function(df) {
+  par(mfrow = c(2,2))
+  for (i in 1:ncol(df)) {
+    name = names(df)[i]
+    hist(df[,i], main=name, breaks="FD", ylab="", xlab="",
+         cex.main=2, cex.axis=1.5, las=1)
+  }
+}
+
 
 ## Binary classification metrics
 
 # confusion matrix
-confusion.matrix <- function(y.true, y.pred) {
-  # if (prob) {
-  #   y.pred <- ifelse(y.prob > 0.5, 1, -1)
-  # } else {
-  #   y.pred <- y.prob
-  # }
-  # values <- unique(y.true)
-
-  true.pos <- sum(y.pred == 1 & y.true == 1)
-  false.pos <- sum(y.pred == 1 & y.true == -1)
-  false.neg <- sum(y.pred == -1 & y.true == 1)
-  true.neg <- sum(y.pred == -1 & y.true == -1)
+confusion.matrix <- function(y.true, y.pred, pos=1, neg=0) {
+  true.pos <- sum(y.pred == pos & y.true == pos)
+  false.pos <- sum(y.pred == pos & y.true == neg)
+  false.neg <- sum(y.pred == neg & y.true == pos)
+  true.neg <- sum(y.pred == neg & y.true == neg)
 
   # horizontal: predicted class
   # vertical: actual class
@@ -29,7 +32,7 @@ confusion.matrix <- function(y.true, y.pred) {
   #  1 & TP & FN
   # -1 & FP & TN
   mat <- matrix(c(true.pos, false.pos, false.neg, true.neg), 2, 2)
-  rownames(mat) <- colnames(mat) <- c("1", "-1")
+  rownames(mat) <- colnames(mat) <- as.character(c(pos, neg))
 
   return(mat)
 }
@@ -75,11 +78,6 @@ f1.score <- function(y.true, y.pred) {
 # misclassification error rate
 misclass.error <- function(y.true, y.pred) {
   N <- length(y.true)
-  # if (prob) {
-  #   y.pred <- ifelse(y.prob > 0.5, 1, -1)
-  # } else {
-  #   y.pred <- y.prob
-  # }
 
   return(sum(y.true != y.pred) / N)
 }
@@ -109,28 +107,42 @@ myknn.cv <- function(full.train, nfolds, target, k.grid=NULL) {
     k.grid <- seq(sqrt(nrow(full.train) * 2))
   }
 
+  ## routine for training error
+  train.err <- sapply(k.grid,
+    function(k) {
+      # fit model
+      mod.knn <- FNN::knn(train=full.train[,-target], test=full.train[,-target],
+                          cl=full.train[,target], k=k)
+
+      # compute training error
+      mean(mod.knn != full.train[,target])
+    })
+
+  ## routine for cross-validation error
   myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
-  
   folds.err <- matrix(NA, length(k.grid), nfolds)
-  
+
   for (i in 1:nfolds) {
     data.train <- full.train[myfolds != i,]  # training data
     data.val  <- full.train[myfolds == i,]  # validation data
-    
+
     # per ogni fold calcola per ogni scenario il MSE
     folds.err[,i] <- sapply(k.grid,
-                            function(k) {
-                              # fit model
-                              mod.knn <- FNN::knn(train=data.train[,-target],
-                                                  test=data.val[,-target],
-                                                  cl=data.train[,target], k=k)
+      function(k) {
+        # fit model
+        mod.knn <- FNN::knn(train=data.train[,-target], test=data.val[,-target],
+                            cl=data.train[,target], k=k)
 
-                              # compute CV error
-                              mean(mod.knn != data.val[,target])
-                            })
+        # compute CV error
+        mean(mod.knn != data.val[,target])
+      })
   }
-  
-  rowMeans(folds.err)
+
+  # returns train error and CV error
+  cv.err <- rowMeans(folds.err)
+
+  # training error & cv error
+  return(cbind(train.err, cv.err))
 }
 
 # adaboost cross-validation
@@ -163,14 +175,14 @@ adaboost.cv <- function(M.max, full.train, nfolds, target, lam=1, bag=1, seed=11
   }
 
   # compute error rate for each value in grid
-  rowMeans(folds.metrics)
+  return(rowMeans(folds.metrics))
 }
 
 
 ## AdaBoost average variable importance
 
-adaboost.vip <- function(nvars, target, train, M, nu, bag, seed=111) {
-  vars.boost <- rep(0, nvars - 1)  # sum of importances
+adaboost.vip <- function(target, train, M, nu, bag, seed=111) {
+  vars.boost <- rep(0, ncol(train) - 1)  # sum of importances
   avg.run <- 30  # runs
 
   set.seed(seed)

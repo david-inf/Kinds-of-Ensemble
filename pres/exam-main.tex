@@ -51,6 +51,13 @@
 \usepackage{pgfplots} % + tikz
 \pgfplotsset{compat=newest}
 \usetikzlibrary{shapes,calc}
+
+\tikzstyle{treenode} = [draw,circle,minimum width=0.6cm,font=\footnotesize,text centered,
+inner sep=1.5pt,outer sep=0pt]
+\tikzstyle{cloud} = [draw,ellipse,centered,text width=3.5em,text centered,
+inner sep=0.5pt,outer sep=0pt,fill=mLightBrown!20,font=\footnotesize]
+\tikzstyle{cloud2} = [draw,ellipse,centered,text width=3.2em,text centered,
+inner sep=1.5pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
 % ------------------ %
 %% Code %%
 % ------------------ %
@@ -73,13 +80,14 @@
 	keywordstyle=\color{Rkwd},basicstyle=\small\ttfamily,%
 	commentstyle=\color{Rcomm}\ttfamily\em,%
 	stringstyle=\color{Rstr}\rmfamily,%
-	numbers=left,numberstyle=\tiny\color{green},stepnumber=1,numbersep=5pt,%
-	showstringspaces=false,breaklines=true,frameround=ftff,%
-	frame=lines,backgroundcolor=\color{lightergray},firstnumber=last,%
+%	numbers=left,numberstyle=\tiny\color{green},stepnumber=1,numbersep=5pt,%
+%	showstringspaces=false,breaklines=true,frameround=ftff,%
+%	frame=lines,backgroundcolor=\color{lightergray},firstnumber=last,%
 	deletekeywords={data,model},%
 	morekeywords={TRUE,FALSE,NULL},%
+	escapeinside={£!}{!£},%
 }
-\lstset{style=Rlang,escapeinside={£!}{!£}}
+\lstset{style=Rlang}
 % ------------------ %
 %% Pseudo-code %%
 \usepackage[ruled,linesnumbered]{algorithm2e}

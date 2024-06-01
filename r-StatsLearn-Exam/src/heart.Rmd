@@ -14,6 +14,7 @@ colors.biasvar <- c("#34558b", "#800080")
 
 ```{r}
 library(RColorBrewer)
+library(ggplot2)
 ```
 
 ```{r}
@@ -24,8 +25,8 @@ library(RColorBrewer)
 ## Dataset
 
 Binary classification problem
-- No disease
-- Disease
+- No disease (-1)
+- Disease (1)
 
 ```{r}
 dat <- read.csv("../data/apple_quality.csv")
@@ -34,9 +35,11 @@ names(dat)[ncol(dat)] <- "Outcome"
 target <- which(colnames(dat) == "Outcome")
 dat <- na.omit(dat)
 
-dat$Outcome[dat$Outcome == "bad"] <- -1
+# consider changing to {0,1}
+dat$Outcome[dat$Outcome == "bad"] <- 0
 dat$Outcome[dat$Outcome == "good"] <- 1
-dat$Outcome <- as.factor(dat$Outcome)
+dat$Outcome <- as.numeric(dat$Outcome)
+# dat$Outcome <- as.factor(dat$Outcome)
 dat$Acidity <- as.numeric(dat$Acidity)
 
 target <- 8
@@ -61,6 +64,13 @@ dataset.distrib(dat[,target])
 boxplot(scale(dat[,-target]))
 
 summary(dat[,-target])
+
+for (i in 1:(ncol(dat)-1)) {
+  print(paste(names(dat)[i], sd(dat[,i])))
+}
+
+manyhist(dat[,1:4])
+manyhist(dat[,5:7])
 ```
 
 ```{r}
@@ -73,7 +83,7 @@ boxplot.stats(scale(heart$chol))$out
 ```
 
 ```{r}
-heatmap(cor(heart[,-target]), Colv=NA, Rowv=NA)
+heatmap(cor(dat[,-target]), Colv=NA, Rowv=NA)
 ```
 
 ### Train-test split
@@ -84,8 +94,8 @@ n <- nrow(dat)
 set.seed(111)
 train.idx <- sample(n, n - floor(n / 3), replace=FALSE)
 
-train <- dat[train.idx,]
-test <- dat[-train.idx,]
+dat.train <- dat[train.idx,]
+dat.test <- dat[-train.idx,]
 ```
 
 
@@ -108,21 +118,60 @@ library(glmnet)
 ### Ridge regression
 
 ```{r}
-logist.reg <- cv.glmnet(model.matrix( ~ . -1, train[,-target]), as.factor(train[,target]),
-                     intercept=TRUE, family="binomial", alpha=0)
+logist.reg <- cv.glmnet(model.matrix( ~ . -1, dat.train[,-target]),
+                        as.factor(dat.train[,target]),
+                        intercept=TRUE, family="binomial", alpha=0)
+```
+
+```{r}
+print(logist.reg)
+
+paste("Best lambda", logist.reg$lambda.min)
 ```
 
 ```{r}
 plot(logist.reg)
+
+plot(logist.reg$glmnet.fit, xvar="lambda", lwd=3)
+abline(v=logist.reg$lambda.min, lty=2, lwd=2)
 ```
 
 ```{r}
-first.metrics(2*train$target-1,
-              2*as.numeric(predict(logist.reg, newx=model.matrix(~.-1, train[,-target]), type="class", s="lambda.min"))-1,
-              2*test$target-1,
-              2*as.numeric(predict(logist.reg, newx=model.matrix(~.-1, test[,-target]), type="class", s="lambda.min"))-1)
+first.metrics(dat.train[,target], predict(logist.reg, newx=model.matrix(~.-1, dat.train[,-target]),
+                                    type="class", s="lambda.min"),
+              dat.test[,target], predict(logist.reg, newx=model.matrix(~.-1, dat.test[,-target]),
+                                         type="class", s="lambda.min"))
 ```
 
+
+### Elastic net regression
+
+```{r}
+logist.net <- cv.glmnet(model.matrix( ~ . -1, dat.train[,-target]),
+                        as.factor(dat.train[,target]),
+                        intercept=TRUE, family="binomial", alpha=0.5)
+```
+
+```{r}
+print(logist.net)
+
+paste("Best lambda", logist.net$lambda.min)
+```
+
+```{r}
+plot(logist.net)
+
+plot(logist.net$glmnet.fit, xvar="lambda", lwd=3)
+abline(v=log(logist.net$lambda.1se), lty=2, lwd=2)
+# legend("topright", legend=rownames(logist.net$glmnet.fit$beta), col=)
+```
+
+```{r}
+first.metrics(dat.train[,target], predict(logist.net, newx=model.matrix(~.-1, dat.train[,-target]),
+                                    type="class", s="lambda.min"),
+              dat.test[,target], predict(logist.net, newx=model.matrix(~.-1, dat.test[,-target]),
+                                         type="class", s="lambda.min"))
+```
 
 
 ## kNN
@@ -133,33 +182,44 @@ k-nearest neighbor classifier
 library(FNN)
 ```
 
+### Model selection
+
 Choose optimal k
 
 ```{r}
-knn.cv.err <- myknn.cv(train, 5, target)
+knn.err <- myknn.cv(dat.train, 5, target)
 
-k.cross <- which.min(knn.cv.err)
+k.cross <- which.min(knn.err[,2])
+paste("Neighbors:", k.cross)
 ```
 
 ```{r}
-plot(seq(sqrt(nrow(train) * 2)), knn.cv.err, type="l")
+# pdf("./plots/biasvar-knn-apple.pdf")
+matplot(knn.err, type=c("l", "l"), lty=c(1, 1), lwd=3, col=colors.biasvar,
+        xlab="Neighbors", ylab="Error rate", main="Bias-Variance tradeoff")
+
+abline(v=k.cross, lty=2, lwd=2)
+
+legend("bottomright", legend=c("Train", "CV", paste0("k*=", k.cross)),
+       col=c(colors.biasvar, "black"),
+       lty=c(1, 1, 2), lwd=3, cex=1.5, bg="white")
+# dev.off()
 ```
 
 ### Final model
 
 ```{r}
-knn.train <- FNN::knn(train=train[,-target], test=train[,-target],
-                    cl=train[,target], k=k.cross)
+knn.train <- FNN::knn(train=dat.train[,-target], test=dat.train[,-target],
+                    cl=dat.train[,target], k=k.cross)
 
-knn.test <- FNN::knn(train=train[,-target], test=test[,-target],
-                     cl=train[,target], k=k.cross)
+knn.test <- FNN::knn(train=dat.train[,-target], test=dat.test[,-target],
+                     cl=dat.train[,target], k=k.cross)
 ```
 
 ```{r}
-first.metrics(train[,target], knn.train,
-              test[,target], knn.test)
+first.metrics(dat.train[,target], knn.train,
+              dat.test[,target], knn.test)
 ```
-
 
 
 ## Decision tree
@@ -171,22 +231,31 @@ library(rpart)
 library(rpart.plot)
 ```
 
+### Model selection
+
 ```{r}
-tree <- rpart::rpart(Outcome ~ ., data=train, method="class",
-                     control=rpart.control(minsplit=20, cp=0, xval=10))
+set.seed(111)
+tree <- rpart::rpart(Outcome ~ ., data=dat.train, method="class",
+                     control=rpart.control(minsplit=20, cp=0, xval=5))
 
 mincp <- tree$cptable[which.min(tree$cptable[,"xerror"]), "CP"]
-tree.pr <- rpart::prune(tree, cp=mincp)
-
-plotcp(tree)
-mincp
+paste0("Optimal cp: ", mincp)
 ```
 
-Grown tree
+Diagnostic
 
 ```{r}
-first.metrics(train$Outcome, predict(tree, type="class"),
-              test$Outcome, predict(tree, type="class", newdata=test[,-target]))
+# pdf("./plots/cp-tree-apple.pdf")
+plotcp(tree)
+abline(v=which.min(tree$cptable[,"xerror"]), lty=2, col="#B45173", lwd=2)
+# dev.off()
+```
+
+Grown tree metrics
+
+```{r}
+first.metrics(dat.train$Outcome, predict(tree, type="class"),
+              dat.test$Outcome, predict(tree, type="class", newdata=dat.test[,-target]))
 
 paste0("Terminal nodes: ", sum(tree$frame$var == "<leaf>"))
 ```
@@ -196,10 +265,14 @@ paste0("Terminal nodes: ", sum(tree$frame$var == "<leaf>"))
 Pruned tree
 
 ```{r}
+tree.pr <- rpart::prune(tree, cp=mincp)
+
+tree.err <- sum(1 - (predict(tree.pr, type="class", newdata=dat.test) == dat.test[,target])) / nrow(dat.test)
+
 # rpart.plot(tree.pr)
 
-first.metrics(train$Outcome, predict(tree.pr, type="class"),
-              test$Outcome, predict(tree.pr, type="class", newdata=test[,-target]))
+first.metrics(dat.train$Outcome, predict(tree.pr, type="class"),
+              dat.test$Outcome, predict(tree.pr, type="class", newdata=dat.test[,-target]))
 
 paste0("Terminal nodes: ", sum(tree.pr$frame$var == "<leaf>"))
 ```
@@ -216,44 +289,55 @@ library(randomForest)
 
 ```{r}
 set.seed(111)
-rf.grown <- randomForest(x=train[,-target], y=train[,target],
-                         importance=TRUE)
+rf.grown <- randomForest(x=dat.train[,-target], y=as.factor(dat.train[,target]),
+                         ntree=500, importance=TRUE)
 
 rf.ntree <- which.min(rf.grown$err.rate[,"OOB"])
-paste0("Forest trees: ", rf.ntree)
+
+paste0("Grown forest trees: ", rf.grown$ntree)
+paste0("Optimal forest trees: ", rf.ntree)
+paste0("mtry: ", rf.grown$mtry)
+print(rf.grown$confusion)
 ```
 
 Diagnostic
 
 ```{r}
-rf.grown
+plot(rf.grown, lty=c(1,1,1), lwd=3)
+abline(v=rf.ntree, lwd=2, lty=2)
 
-plot(rf.grown)
-
+# pdf("./plots/biasvar-rf-apple.pdf")
 plot(seq(rf.grown$ntree), rf.grown$err.rate[,"OOB"], type="l", lwd=3,
-     xlab="ntree", ylab="OOB error")
-abline(v=rf.ntree, lwd=2, lty=3)
+     xlab="ntree", ylab="OOB error", col=colors.biasvar[2],
+     main="Bias-Variance tradeoff")
+abline(v=rf.ntree, lwd=2, lty=2)
+# dev.off()
 ```
 
 ### Final model
 
 ```{r}
 set.seed(111)
-rf.opt <- randomForest(x=train[,-target], y=train[,target],
-                       xtest=test[,-target], ytest=test[,target],
+rf.opt <- randomForest(x=dat.train[,-target], y=as.factor(dat.train[,target]),
+                       xtest=dat.test[,-target], ytest=as.factor(dat.test[,target]),
                        importance=TRUE, ntree=rf.ntree)
 ```
 
+Final random forest metrics
+
 ```{r}
-paste0("Train score: ", sum(diag(rf.opt$confusion)) / length(train[,target]))
-paste0("Test score: ", sum(diag(rf.opt$test$confusion)) / length(test[,target]))
+sum(diag(rf.opt$confusion))/nrow(dat.train)
+sum(diag(rf.opt$test$confusion))/nrow(dat.test)
+
+first.metrics(dat.train[,target], as.numeric(as.character(rf.opt$predicted)),
+              dat.test[,target], as.numeric(as.character(rf.opt$test$predicted)))
 ```
 
 ### Variable importance
 
 ```{r}
-# pdf("./plots/rf-vip-apple.pdf")
-varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5)
+# pdf("./plots/vip-rf-apple.pdf")
+varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5, main="Variable importance")
 # dev.off()
 # importance(rf, type=1)
 ```
@@ -278,19 +362,23 @@ ada.bag <- 0.5
 
 ```{r}
 set.seed(111)
-adaboost <- ada::ada(x=as.matrix(train[,-target]),
-                     y=train[,target],
-                     test.x=as.matrix(test[,-target]),
-                     test.y=test[,target],
+adaboost <- ada::ada(x=as.matrix(dat.train[,-target]),
+                     y=dat.train[,target],
+                     test.x=as.matrix(dat.test[,-target]),
+                     test.y=dat.test[,target],
                      loss="exponential", type="discrete",
                      iter=ada.M, nu=ada.nu, bag.frac=ada.bag)
 
-adaboost.cv.err <- adaboost.cv(ada.M, train, 5, target, ada.nu, ada.bag)
+adaboost.cv.err <- adaboost.cv(ada.M, dat.train, 5, target, ada.nu, ada.bag)
 M.cross <- which.min(adaboost.cv.err)
+
 paste0("Boosting trees: ", M.cross)
 ```
 
 ```{r}
+plot(adaboost, FALSE, TRUE)
+
+# pdf("./plots/biasvar-ada-apple.pdf")
 matplot(seq(ada.M), cbind(adaboost$model$errs[,1], adaboost.cv.err),
         type=c("l", "l"), lty=c(1, 1), lwd=3, col=colors.biasvar, log="x",
         xlab="Rounds of boosting", ylab="Error rate",
@@ -300,9 +388,9 @@ matplot(seq(ada.M), cbind(adaboost$model$errs[,1], adaboost.cv.err),
 
 abline(v=M.cross, lty=2, lwd=3)
 
-# abline(h=tree.test.err, lty=3, lwd=2)
-# text(x=20, y=tree.test.err*0.96, cex=1.3,
-#      paste0(sum(tree$frame$var == "<leaf>"), "-node tree"))
+abline(h=tree.err, lty=3, lwd=2)
+text(x=50, y=tree.err*0.96, cex=1.3,
+     paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
 
 # abline(h=adaboost.st$model$errs[1,1], lty=3, lwd=2)
 # text(x=12, y=adaboost.st$model$errs[1,1]*0.96, "Single stump", cex=0.85)
@@ -310,19 +398,17 @@ abline(v=M.cross, lty=2, lwd=3)
 legend("bottomleft", legend=c("Train", "CV", paste("M*=", M.cross, sep="")),
        col=c(colors.biasvar, "black"),
        lty=c(1, 1, 2), lwd=3, cex=1.5, bg="white")
-
-
-plot(adaboost, FALSE, TRUE)
+# dev.off()
 ```
 
 ### Final model
 
 ```{r}
 set.seed(111)
-adaboost.opt <- ada::ada(x=as.matrix(train[,-target]),
-                         y=train[,target],
-                         test.x=as.matrix(test[,-target]),
-                         test.y=test[,target],
+adaboost.opt <- ada::ada(x=as.matrix(dat.train[,-target]),
+                         y=dat.train[,target],
+                         test.x=as.matrix(dat.test[,-target]),
+                         test.y=dat.test[,target],
                          loss="exponential", type="discrete",
                          iter=M.cross, nu=ada.nu, bag.frac=ada.bag)
 ```
@@ -332,20 +418,19 @@ summary(adaboost.opt)
 
 # plot(adaboost.opt, FALSE, TRUE)
 
-first.metrics(train$Outcome, predict(adaboost.opt, newdata=train, type="vector"),
-              test$Outcome, predict(adaboost.opt, newdata=test, type="vector"))
+first.metrics(dat.train$Outcome, predict(adaboost.opt, newdata=dat.train, type="vector"),
+              dat.test$Outcome, predict(adaboost.opt, newdata=dat.test, type="vector"))
 ```
 
 ### Variable importance
 
 ```{r}
-boost.avgvip <- adaboost.vip(ncol(dat), target, train, M.cross,
-                                         ada.nu, ada.bag)
+boost.avgvip <- adaboost.vip(target, dat.train, M.cross, ada.nu, ada.bag)
 boost.avgvip <- sort(boost.avgvip)
 ```
 
 ```{r}
-# pdf("./plots/ada-vip-apple.pdf")
+# pdf("./plots/vip-ada-apple.pdf")
 dotchart(as.numeric(boost.avgvip),
          names(boost.avgvip),
          main="Average Variable Importance", pch=19, xlab="Score", pt.cex=1.5)
@@ -360,21 +445,248 @@ In base allo stato di deperibilità (Ripeness) la RF determina de è buona o cat
 
 Learners:
 - `SL.mean`
-- 
+- `SL.randomForest`
+- `SL.knn`
+- `SL.rpart`
+- `SL.rpartPrune`
+- `SL.glmnet`
 
 ```{r}
 library(SuperLearner)
+library(parallel)
+```
+
+Define learners
+
+```{r}
+## random forest
+my.rf <- create.Learner("SL.randomForest", list(ntree=rf.ntree), name_prefix="RF")
+## kNN
+my.knn <- create.Learner("SL.knn", list(k=k.cross), name_prefix="kNN")
+## decision tree
+my.dt <- create.Learner("SL.rpart", list(minsplit=20, cp=0, xval=5), name_prefix="DT")
+## decision tree with pruning
+my.dtpr <- create.Learner("SL.rpartPrune", list(minsplit=20, cp=0, xval=5), name_prefix="DTpr")
+## ridge, lasso and elastic-net logistic regression
+my.log <- create.Learner("SL.glmnet", tune=list(alpha=c(0, 1, 0.5)), detailed_names=T, name_prefix="Log")
+
+myLibrary <- c(my.knn$names, my.rf$names, my.dt$names, my.dtpr$names,
+               my.log$names)
+myLibrary2 <- c(my.rf$names, my.dt$names, my.dtpr$names,
+               my.log$names)
+
+str(my.rf)
+str(my.knn)
+str(my.dt)
+str(my.dtpr)
+str(my.log)
+```
+
+### Discrete super learners
+
+#### Mean
+
+Mean over all observations
+
+```{r}
+set.seed(111)
+sl.mean <- SuperLearner(Y=dat.train[,target],
+                        X=dat.train[,-target], family=binomial(),
+                        SL.library=c("SL.mean"),
+                        cvControl=list(V=10, shuffle=FALSE))
 ```
 
 ```{r}
-# set.seed(111)  # only if shuffle=TRUE
-sl1 <- SuperLearner(Y=as.numeric(train[,target]),
-                    X=train[,-target], family=binomial(),
-                    SL.library=c("SL.mean"),
-                    cvControl=list(V=5, shuffle=FALSE))
+print(sl.mean)
 
-sl1
+first.metrics(dat.train[,target], ifelse(predict(sl.mean, dat.train[,-target])$pred>=0.5, 1, 0),
+              dat.test[,target], ifelse(predict(sl.mean, dat.test[,-target])$pred>=0.5, 1, 0))
 ```
+
+#### Random forest
+
+Grow a random forest
+
+```{r}
+set.seed(111)  # when shuffle=TRUE and for randomForest
+sl.rf <- SuperLearner(Y=dat.train[,target],
+                      X=dat.train[,-target], family=binomial(),
+                      SL.library=my.rf$names,
+                      cvControl=list(V=10, shuffle=FALSE))
+
+str(sl.rf$fitLibrary$SL.randomForest$object, max.level=1)
+```
+
+```{r}
+print(sl.rf)
+
+first.metrics(dat.train[,target], ifelse(sl.rf$SL.predict>=0.5, 1, 0),
+              dat.test[,target], ifelse(predict(sl.rf, dat.test[,-target])$pred>=0.5, 1, 0))
+```
+
+#### kNN
+
+```{r}
+set.seed(111)
+sl.knn <- SuperLearner(Y=dat.train[,target],
+                       X=dat.train[,-target], family=binomial(),
+                       SL.library=my.knn$names,
+                       cvControl=list(V=10, shuffle=FALSE))
+
+str(sl.knn$fitLibrary$SL.knn_1_All, max.level=1)
+```
+
+```{r}
+print(sl.knn)
+
+first.metrics(dat.train[,target], ifelse(sl.knn$SL.predict>=0.5, 1, 0),
+              dat.test[,target],
+              ifelse(predict(sl.knn, dat.test[,-target], dat.train[,-target], dat.train[,target],
+                             onlySL=TRUE)$pred>=0.5, 1, 0))
+```
+
+#### Decision tree with pruning
+
+```{r}
+set.seed(111)
+sl.dt <- SuperLearner(Y=dat.train[,target],
+                      X=dat.train[,-target], family=binomial(),
+                      SL.library=my.dtpr$names,
+                      cvControl=list(V=10, shuffle=FALSE))
+
+# str(sl.dt$fitLibrary$SL.rpartPrune_1_All$object, max.level=1)
+```
+
+```{r}
+print(sl.dt)
+
+first.metrics(dat.train[,target], ifelse(sl.dt$SL.predict>=0.5, 1, 0),
+              dat.test[,target], ifelse(predict(sl.dt, dat.test[,-target])$pred>=0.5, 1, 0))
+```
+
+
+### The super learner
+
+#### Full super learner
+
+```{r}
+cluster = parallel::makeCluster(4)
+
+parallel::clusterSetRNGStream(cluster, iseed=111)
+foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
+parallel::clusterExport(cluster, myLibrary)
+
+(sl.full <- snowSuperLearner(Y=dat.train[,target], X=dat.train[,-target],
+                             family=binomial(), cluster=cluster, SL.library=myLibrary,
+                             cvControl=list(V=10, shuffle=FALSE)))
+sl.final$times$everything
+
+parallel::stopCluster(cluster)
+```
+
+Diagnostic
+
+```{r}
+print(sl.full)
+
+dotchart(sort(sl.full$coef),
+         main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
+         col=ifelse(sort(sl.full$coef)==0, "red", "black"))
+```
+
+```{r}
+sl.full.pred <- predict(sl.full, dat.test[,-target], dat.train[,-target], dat.train[,target])
+
+first.metrics(dat.train[,target], ifelse(sl.full$SL.predict>=0.5, 1, 0),
+              dat.test[,target], ifelse(sl.full.pred$pred>=0.5, 1, 0))
+```
+
+Cross-validate the strong learners
+
+```{r}
+cluster = parallel::makeCluster(4)
+
+parallel::clusterSetRNGStream(cluster, iseed=111)
+foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
+parallel::clusterExport(cluster, myLibrary)
+
+system.time({
+  sl.full.cv <- CV.SuperLearner(Y=dat.train[,target], X=dat.train[,-target],
+                                family=binomial(), parallel=cluster, SL.library=myLibrary,
+                                cvControl=list(V=5), innerCvControl=list(list(V=10, shuffle=FALSE)))
+})
+
+summary(sl.full.cv)
+
+parallel::stopCluster(cluster)
+```
+
+```{r}
+plot(sl.full.cv) + theme_bw()
+```
+
+
+
+#### Reduced super learner
+
+```{r}
+cluster = parallel::makeCluster(4)
+
+parallel::clusterSetRNGStream(cluster, iseed=111)
+foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
+parallel::clusterExport(cluster, myLibrary2)
+
+(sl.final <- snowSuperLearner(Y=dat.train[,target], X=dat.train[,-target], family=binomial(),
+                              cluster=cluster, SL.library=c("SL.mean", myLibrary2),
+                              cvControl=list(V=10, shuffle=FALSE)))
+sl.final$times$everything
+
+stopCluster(cluster)
+```
+
+```{r}
+print(sl.final)
+
+dotchart(sort(sl.final$coef),
+         main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
+         col=ifelse(sort(sl.final$coef)==0, "red", "black"))
+# abline(v=0, lty=2, lwd=2)
+```
+
+```{r}
+sl.final.pred <- predict(sl.final, dat.test[,-target], dat.train[,-target], dat.train[,target])
+
+first.metrics(dat.train[,target], ifelse(sl.final$SL.predict>=0.5, 1, 0),
+              dat.test[,target], ifelse(sl.final.pred$pred>=0.5, 1, 0))
+```
+
+Cross-validate the strong learners
+
+```{r}
+cluster = parallel::makeCluster(4)
+
+parallel::clusterSetRNGStream(cluster, iseed=111)
+foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
+parallel::clusterExport(cluster, myLibrary)
+
+system.time({
+  sl.final.cv <- CV.SuperLearner(Y=dat.train[,target], X=dat.train[,-target],
+                                family=binomial(), parallel=cluster, SL.library=myLibrary,
+                                cvControl=list(V=5), innerCvControl=list(list(V=10, shuffle=FALSE)))
+})
+
+summary(sl.final.cv)
+
+parallel::stopCluster(cluster)
+```
+
+```{r}
+plot(sl.final.cv) + theme_bw()
+```
+
+
+
+
 
 
 
