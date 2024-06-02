@@ -351,11 +351,17 @@ library(ada)
 ```
 
 ```{r}
-# ada.stump <- rpart.control(maxdepth=1,cp=-1,minsplit=0,xval=0)
-# ada.tree <- rpart.control(cp=-1, minsplit=0, xval=0, maxdepth=2)
+## rivedere e rifare che sto pacchetto m'ha fottuto
+ada.stump <- rpart.control(maxdepth=30, cp=-1, minsplit=20, xval=10)
+ada.depth2 <- rpart.control(maxdepth=2, cp=-1, minsplit=20, xval=10)
+
 ada.M <- 1000
 ada.nu <- 0.1
 ada.bag <- 0.5
+
+str(rpart.control())
+str(ada.stump)
+str(ada.depth2)
 ```
 
 ### Boost the trees
@@ -367,12 +373,33 @@ adaboost <- ada::ada(x=as.matrix(dat.train[,-target]),
                      test.x=as.matrix(dat.test[,-target]),
                      test.y=dat.test[,target],
                      loss="exponential", type="discrete",
+                     iter=ada.M, nu=ada.nu, bag.frac=ada.bag,
+                     control=ada.depth2)
+```
+
+
+```{r}
+adaboost.cv.err <- adaboost.cv(ada.M, dat.train, 5, target, ada.nu, ada.bag)
+M.cross <- which.min(adaboost.cv.err)
+```
+
+```{r}
+set.seed(111)
+adaboost.2 <- ada::ada(x=as.matrix(dat.train[,-target]),
+                     y=dat.train[,target],
+                     test.x=as.matrix(dat.test[,-target]),
+                     test.y=dat.test[,target],
+                     loss="exponential", type="discrete",
                      iter=ada.M, nu=ada.nu, bag.frac=ada.bag)
 
 adaboost.cv.err <- adaboost.cv(ada.M, dat.train, 5, target, ada.nu, ada.bag)
 M.cross <- which.min(adaboost.cv.err)
+```
 
-paste0("Boosting trees: ", M.cross)
+
+```{r}
+paste0("Boosting trees (stumps): ", M.cross)
+paste0("Boosting trees (depth2): ", M.cross)
 ```
 
 ```{r}

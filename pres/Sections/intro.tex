@@ -9,9 +9,9 @@
 
 \end{column}
 \begin{column}{0.5\textwidth}
-Binary classification task% (disease -- no disease)
+Binary classification task $\mathcal{Y}\in\set{0,1}$% (disease -- no disease)
 
-Class distribution: 0:0.49 -- 1:0.51
+Class distribution: 0.49 -- 0.51
 
 Approaches
 \begin{itemize}
@@ -28,13 +28,64 @@ Approaches
 
 % ------------------------------- %
 
+\begin{frame}[fragile]{Random forest}
+
+\begin{columns}[T]
+\begin{column}{0.65\textwidth}
+\begin{figure}
+\centering
+\vspace*{-0.5em}\begin{tikzpicture}
+	%draw,ellipse,fill=red!20,minimum height=2em,text centered,font=\sffamily\small
+	\tikzset{help lines/.append style=pink}
+%	\draw [help lines] (-1,-4) grid (7,2); \node[draw,circle,fill=red] at (0,0) {};
+	
+	\node[cloud3] (b1) at (0,0) {$\pi_1, m_1$};
+	\node[cloud3] (b2) at ($(b1)+(1.8,0)$) {$\pi_2, m_2$};
+	\node[cloud3] (B) at ($(b2)+(3,0)$) {$\pi_B, m_B$};
+	\draw[-,dotted,very thick] (b1) to (b2);
+	\draw[-,dotted,very thick] (b2) to (B);
+	
+	\node[] (T1) at ($(b1)+(0,-1.3)$) {$T_1$};
+	\node[] (T2) at ($(b2)+(0,-1.3)$) {$T_2$};
+	\node[] (TB) at ($(B)+(0,-1.3)$) {$T_B$};
+	\draw[-stealth] ($(b1.south)+(0,-0.15)$) to (T1);
+	\draw[-stealth] ($(b2.south)+(0,-0.15)$) to (T2);
+	\draw[-stealth] ($(B.south)+(0,-0.15)$) to (TB);
+	
+	\begingroup\linespread{0.9}
+	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (m) at (3.3,0.7) {random predictors};
+	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (pi) at (3.1,-1.2) {random subsample};
+	\endgroup
+	\draw[-stealth] (m) to ($(b2.east)+(-0.2,0.1)$);
+	\draw[-stealth] (pi) to ($(b2.south)+(-0.1,0.25)$);
+	
+	\node[rectangle,fill=mLightGreen!20,font=\large,right] (G) at (-0.8,-3) {$G(x)=\argmax_k\sum_{b=1}^B\mathbb{I}(T_b(x)=k)$};
+\end{tikzpicture}
+\end{figure}
+\end{column}
+\begin{column}{0.45\textwidth}
+\begin{lstlisting}
+randomForest(x, y,
+  importance=TRUE,
+  ntree=B.cross£!$\,\leftarrow B^\ast$!£
+  )
+\end{lstlisting}
+\end{column}
+\end{columns}
+
+
+
+\end{frame}
+
+% ------------------------------- %
+
 \begin{frame}[fragile]{AdaBoost algorithm}
 % modello additivo perché in ogni albero c'è soltanto una variabile
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
 \begin{figure}
 \centering
-\vspace*{-0.5em}\begin{tikzpicture}
+\vspace*{-0.8em}\begin{tikzpicture}
 	%draw,ellipse,fill=red!20,minimum height=2em,text centered,font=\sffamily\small
 	\tikzset{help lines/.append style=pink}
 %	\draw [help lines] (-2,-8) grid (3,1); \node[draw,circle,fill=red] at (0,0) {};
@@ -60,11 +111,11 @@ Approaches
 	%	\draw[-stealth] (GM) to (G);
 	
 	\begingroup\linespread{0.9}
-	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (pi) at (3,-2.3) {dataset random subsample};
-	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (w) at (1.4,-3) {sample weights};
+	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (pi) at (2.8,-2.3) {random subsample};
+	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (w) at (1.1,-2.7) {sample weights};
 	\endgroup
 	\draw[-stealth] (pi) to ($(m2.east)+(-0.25,-0.1)$);
-	\draw[-stealth] (w) to ($(m2.south)+(-0.25,0.15)$);
+	\draw[-stealth] (w) to ($(m2.south)+(-0.25,0.25)$);
 \end{tikzpicture}
 \end{figure}
 \end{column}
@@ -79,19 +130,51 @@ Approaches
 %\item \alert{Re-weighting} of a bootstrapped fraction of the training data  % permette all'algoritmo di concentrarsi sugli esempi più difficili da classificare, quindi di questi esempi viene aumentato il peso
 %\end{itemize}}
 
+\vspace*{0.5em}Encoding $\mathcal{Y}\in\set{-1,1}$
+
 \begin{lstlisting}
-ada::ada(formula, data,
+ada::ada(x, y,
   loss="exponential",
   type="discrete",
-  iter,£!$\,\leftarrow M$!£
-  nu=0.1,£!$\,\leftarrow\lambda$!£
-  bag.frac=0.5£!$\,\leftarrow\pi$!£
-  )
+  iter,£!$\,\alert{\leftarrow} M$!£ nu=0.1,£!$\,\alert{\leftarrow}\lambda$!£
+  bag.frac=0.5,£!$\,\alert{\leftarrow}\pi$!£
+  control=stump£!$\,\vee\,$!£depth2)
 \end{lstlisting}
 
-\begin{lstlisting}
-
-\end{lstlisting}
+\begin{columns}[T]
+\begin{column}{0.5\textwidth}
+\begin{tikzpicture}[]
+	\tikzset{help lines/.append style=pink}
+	%	\draw [help lines] (-2,-2) grid (2,1);
+	
+	\node[treenode] (root) at (0,0) {$-1$};
+	\node[treenode] (root-l) at (-120:1.35) {$-1$};
+	\node[treenode] (root-r) at (-60:1.35) {$1$};
+	
+	\draw[-] (root) -- node[font=\footnotesize,left] {$x_j<v$} (root-l);
+	\draw[-] (root) -- node[font=\footnotesize,right] {$x_j\geq v$} (root-r);
+\end{tikzpicture}
+\end{column}
+\hspace{-1.5em}\begin{column}{0.5\textwidth}
+\begin{tikzpicture}[]
+	\tikzset{help lines/.append style=pink}
+	%	\draw [help lines] (-3,-4) grid (3,1);
+	
+	\node[treenode] (root) at (0,0) {$-1$};
+	\node[treenode] (root-l) at (-130:1.4) {$-1$};
+	\node[treenode] (root-r) at (-70:{(1.4*cos(40)+1.25*cos(20))/cos(20)}) {$1$};
+	\node[treenode] (ll) at ($(root-l)+(-110:1.25)$) {$1$};
+	\node[treenode] (lr) at ($(root-l)+(-70:1.25)$) {$-1$};
+	
+%	\draw[-] (root) -- node[font=\scriptsize,left] {$x_j<v$} (root-l);
+%	\draw[-] (root) -- node[font=\scriptsize,right] {$x_j\geq v$} (root-r);
+%	\draw[-] (root-l) -- (ll); \draw[-] (root-l) -- node[font=\scriptsize,right] {$x_i$} (lr);
+	\draw[-] (root) -- (root-l);
+	\draw[-] (root) -- (root-r);
+	\draw[-] (root-l) -- (ll); \draw[-] (root-l) -- (lr);
+\end{tikzpicture}
+\end{column}
+\end{columns}
 
 \end{column}
 \end{columns}
