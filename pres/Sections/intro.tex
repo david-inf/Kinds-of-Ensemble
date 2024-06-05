@@ -2,29 +2,56 @@
 
 % ------------------------------- %
 
-\begin{frame}{\dots dataset}
+\begin{frame}{Apple quality dataset}
 
 \begin{columns}[T]
 \begin{column}{0.5\textwidth}
+Variables
+
+\begingroup\setlength{\tabcolsep}{-0.5ex}
+\hspace*{-0.5em}\begin{tabular}{p{0.55\textwidth}p{0.5\textwidth}}
+\begin{itemize}
+	\item \texttt{Size}
+	\item \texttt{Weight}
+	\item \texttt{Sweetness}
+	\item \texttt{Crunchiness}
+\end{itemize}
+&
+\begin{itemize}
+	\item \texttt{Juiciness}
+	\item \texttt{Ripeness}
+	\item \texttt{Acidity}
+\end{itemize}
+\end{tabular}
+\endgroup
 
 \end{column}
 \begin{column}{0.5\textwidth}
-Binary classification task $\mathcal{Y}\in\set{0,1}$% (disease -- no disease)
+\alert{Binary classification} task% $\mathcal{Y}\in\set{0,1}$% (disease -- no disease)
 
 Class distribution: 0.49 -- 0.51
 
-Approaches
+\vspace{1em}Methods
 \begin{itemize}
-	\item Decision tree
+	\item $k\text{NN}$, Decision tree, Logistic regression
 	\item Random forest
 	\item AdaBoost
-	\item Ridge logistic regression
 	\item Super learner
 \end{itemize}
 \end{column}
 \end{columns}
 
 \end{frame}
+
+
+%- **Size**: size of the apple
+%- **Weight**: weight of the apple
+%- **Sweetness**: how sweet an apple is (Grado di dolcezza del frutto (concentrazione di zuccheri))
+%- **Crunchiness**: how crisp the apple is (Croccantezza sulla base della consistenza del frutto)
+%- **Juiciness**: how juicy an apple is (Succosità)
+%- **Ripeness**: how ripe an apple is (Stato di deperibilità del frutto, quanto è maturo)
+%- **Acidity**: how acid an apple is (Acidità (contenuto e composizione di acidi organici))
+%- **Quality**: the quality is *good* or *bad*
 
 % ------------------------------- %
 
@@ -60,6 +87,7 @@ Approaches
 	\draw[-stealth] (pi) to ($(b2.south)+(-0.1,0.25)$);
 	
 	\node[rectangle,fill=mLightGreen!20,font=\large,right] (G) at (-0.8,-3) {$G(x)=\argmax_k\sum_{b=1}^B\mathbb{I}(T_b(x)=k)$};
+	\node[rectangle,fill=red!20,font=\large,right] (mtry) at ($(G.west)+(0,-1)$) {$\mathtt{mtry}=\lfloor\sqrt{p}\rfloor$};
 \end{tikzpicture}
 \end{figure}
 \end{column}
@@ -67,13 +95,14 @@ Approaches
 \begin{lstlisting}
 randomForest(x, y,
   importance=TRUE,
-  ntree=B.cross£!$\,\leftarrow B^\ast$!£
+  ntree=B.oob£!$\,\alert{\leftarrow}B^\ast$!£
   )
 \end{lstlisting}
+
+\hspace*{-0.8em}\includegraphics[width=1.1\columnwidth]{../r-StatsLearn-Exam/src/plots/biasvar-rf-apple}
+
 \end{column}
 \end{columns}
-
-
 
 \end{frame}
 
@@ -136,46 +165,73 @@ randomForest(x, y,
 ada::ada(x, y,
   loss="exponential",
   type="discrete",
-  iter,£!$\,\alert{\leftarrow} M$!£ nu=0.1,£!$\,\alert{\leftarrow}\lambda$!£
-  bag.frac=0.5,£!$\,\alert{\leftarrow}\pi$!£
-  control=stump£!$\,\vee\,$!£depth2)
+  iter£!$\,\alert{\leftarrow} M^\ast$!£, nu£!$\,\alert{\leftarrow}\lambda^\ast$!£,
+  bag.frac£!$\,\alert{\leftarrow}\pi^\ast$!£,
+  control=base.learner)
 \end{lstlisting}
 
-\begin{columns}[T]
-\begin{column}{0.5\textwidth}
-\begin{tikzpicture}[]
+%\begin{columns}[T]
+%\begin{column}{0.5\textwidth}
+%\begin{tikzpicture}[]
+%	\tikzset{help lines/.append style=pink}
+%	%	\draw [help lines] (-2,-2) grid (2,1);
+%	
+%	\node[treenode] (root) at (0,0) {$-1$};
+%	\node[treenode] (root-l) at (-120:1.35) {$-1$};
+%	\node[treenode] (root-r) at (-60:1.35) {$1$};
+%	
+%	\draw[-] (root) -- node[font=\footnotesize,left] {$x_j<v$} (root-l);
+%	\draw[-] (root) -- node[font=\footnotesize,right] {$x_j\geq v$} (root-r);
+%\end{tikzpicture}
+%\end{column}
+%\hspace{-3em}\begin{column}{0.5\textwidth}
+%\begin{tikzpicture}[]
+%	\tikzset{help lines/.append style=pink}
+%	%	\draw [help lines] (-3,-4) grid (3,1);
+%	
+%	\node[treenode] (root) at (0,0) {$-1$};
+%	\node[treenode] (root-l) at (-130:1.4) {$-1$};
+%	\node[treenode] (root-r) at (-50:1.4) {$1$};
+%	\node[treenode] (ll) at ($(root-l)+(-110:1.25)$) {$1$};
+%	\node[treenode] (lr) at ($(root-l)+(-70:1.25)$) {$-1$};
+%	\node[treenode] (rl) at ($(root-r)+(-110:1.25)$) {$1$};
+%	\node[treenode] (rr) at ($(root-r)+(-70:1.25)$) {$-1$};
+%	
+%	\draw[-] (root) -- (root-l);
+%	\draw[-] (root) -- (root-r);
+%	\draw[-] (root-l) -- (ll); \draw[-] (root-l) -- (lr);
+%	\draw[-] (root-r) -- (rl); \draw[-] (root-r) -- (rr);
+%\end{tikzpicture}
+%\end{column}
+%\end{columns}
+
+\vspace{1.5em}\begin{center}\begin{tikzpicture}[]
 	\tikzset{help lines/.append style=pink}
-	%	\draw [help lines] (-2,-2) grid (2,1);
+%	\draw [help lines] (-2,-2) grid (2,1);
 	
 	\node[treenode] (root) at (0,0) {$-1$};
 	\node[treenode] (root-l) at (-120:1.35) {$-1$};
 	\node[treenode] (root-r) at (-60:1.35) {$1$};
 	
-	\draw[-] (root) -- node[font=\footnotesize,left] {$x_j<v$} (root-l);
-	\draw[-] (root) -- node[font=\footnotesize,right] {$x_j\geq v$} (root-r);
-\end{tikzpicture}
-\end{column}
-\hspace{-1.5em}\begin{column}{0.5\textwidth}
-\begin{tikzpicture}[]
-	\tikzset{help lines/.append style=pink}
-	%	\draw [help lines] (-3,-4) grid (3,1);
-	
-	\node[treenode] (root) at (0,0) {$-1$};
-	\node[treenode] (root-l) at (-130:1.4) {$-1$};
-	\node[treenode] (root-r) at (-70:{(1.4*cos(40)+1.25*cos(20))/cos(20)}) {$1$};
-	\node[treenode] (ll) at ($(root-l)+(-110:1.25)$) {$1$};
-	\node[treenode] (lr) at ($(root-l)+(-70:1.25)$) {$-1$};
-	
-%	\draw[-] (root) -- node[font=\scriptsize,left] {$x_j<v$} (root-l);
-%	\draw[-] (root) -- node[font=\scriptsize,right] {$x_j\geq v$} (root-r);
-%	\draw[-] (root-l) -- (ll); \draw[-] (root-l) -- node[font=\scriptsize,right] {$x_i$} (lr);
-	\draw[-] (root) -- (root-l);
-	\draw[-] (root) -- (root-r);
-	\draw[-] (root-l) -- (ll); \draw[-] (root-l) -- (lr);
-\end{tikzpicture}
+	\draw[-] (root) -- node[font=\scriptsize,left] {$x_j<v$} (root-l);
+	\draw[-] (root) -- node[font=\scriptsize,right] {$x_j\geq v$} (root-r);
+
+	\draw[|-|] ($(root)+(1.65,0)$) -- node[right,font=\footnotesize] {$d=1$} ++ (0,-{1.35*cos(30)});
+\end{tikzpicture}\end{center}
+
 \end{column}
 \end{columns}
 
+\end{frame}
+
+\begin{frame}{AdaBoost tuning}
+
+\begin{columns}[T]
+\hspace*{-2.4em}\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.23\columnwidth]{tune-nu-ada-apple}
+\end{column}
+\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.23\columnwidth]{tune-bag-ada-apple}
 \end{column}
 \end{columns}
 
@@ -183,13 +239,25 @@ ada::ada(x, y,
 
 % ------------------------------- %
 
-\begin{frame}{What's the Super Learner?}
+\begin{frame}{RF and Ada comparison}
 
-\begin{figure}
-\includegraphics[width=\textwidth]{./Figures/sup-learn.jpg}
-\end{figure}
+% la scale sull'ascisse va bene?
+
+% mi interessava riproporre questa analisi perché volevo indagare sulla differente selezione delle variabili
+% da parte dei due modelli
+
+\begin{columns}[T]
+\hspace*{-3.5em}\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.23\columnwidth]{vip-rf-apple}
+\end{column}
+\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.23\columnwidth]{vip-ada-apple}
+\end{column}
+\end{columns}
 
 \end{frame}
+
+% ------------------------------- %
 
 \begin{frame}{The Super Learner flow diagram}
 
@@ -229,15 +297,34 @@ ada::ada(x, y,
 
 \end{frame}
 
-\begin{frame}{Super learner in practice}
+\begin{frame}[fragile]{Super learner in practice}
+
+% esecuzione in parallelo specifica per Windows
+
+% azzardo un po': i coefficienti del super learner potrebbero essere di aiuto nella scelta del modello definitivo
 
 \begin{columns}[T]
-\begin{column}{0.5\textwidth}
-Package \texttt{SuperLearner}
+\hspace*{-1em}\begin{column}{0.55\textwidth}
+\begin{lstlisting}
+SuperLearner(Y, X,
+  cluster=cluster,
+  SL.library=myLib,£!$\,\alert{\leftarrow}\set{\phi_k}$!£
+  cvControl=list(
+    V=10,shuffle=FALSE))
+\end{lstlisting}
 \end{column}
-\begin{column}{0.5\textwidth}
+\hspace*{-4em}\begin{column}{0.5\textwidth}
 % una sorta di variable importance ma per i pesi degli strong learners
+\begin{tikzpicture}
+%	\draw[help lines] (0,0) grid (6,6); \node[draw,circle,fill=red] at (0,0) {};
+	\node[immagine] at (0,0) {\includegraphics[width=1.23\columnwidth]{../r-StatsLearn-Exam/src/plots/coef-sl-apple}};
 
+	\node[] (phi) at (0.7,6.4) {$\set{\hat{\phi}_k}$};
+	\node[] (alph) at (2.25,0) {$\hat{\alpha}_k$};
+	\draw[-latex,thick] (phi) -- ++(-90:0.8);
+	\draw[-latex,thick] (alph) -- ++(13:1.1);
+\end{tikzpicture}
+%\includegraphics[width=1.23\columnwidth]{../r-StatsLearn-Exam/src/plots/coef-sl-apple}
 \end{column}
 \end{columns}
 
@@ -245,7 +332,7 @@ Package \texttt{SuperLearner}
 
 % ------------------------------- %
 
-\begin{frame}{Scores}
+\begin{frame}{Performance}
 
 % il super learner riesce a prendere il meglio da questi modelli??
 

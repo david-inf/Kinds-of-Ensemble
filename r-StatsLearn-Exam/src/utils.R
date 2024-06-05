@@ -145,8 +145,36 @@ myknn.cv <- function(full.train, nfolds, target, k.grid=NULL) {
   return(cbind(train.err, cv.err))
 }
 
+
+# decision tree cross-validation
+tree.cv <- function(d, full.train, formula, target, nfolds=5, seed=111) {
+  myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
+
+  folds.metrics <- c()
+
+  for (i in 1:nfolds) {
+
+    data.train <- full.train[myfolds != i,]  # training data
+    data.val <- full.train[myfolds == i,]  # validation data
+
+    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    tree <- rpart(formula, data=data.train, method="class", control=control)
+
+    err <- 1 - accuracy.score(data.val[,target],
+                              predict(tree, type="class",
+                                      newdata=data.val[,-target]))
+
+    folds.metrics <- c(folds.metrics, err)
+
+  }
+
+  return(mean(folds.metrics))
+}
+
+
 # adaboost cross-validation
-adaboost.cv <- function(M.max, full.train, nfolds, target, lam=1, bag=1, seed=111) {
+adaboost.cv <- function(M.max, full.train, nfolds, target, control=rpart.control(),
+                        lam=1, bag=1, seed=111) {
   myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
 
   folds.metrics <- matrix(NA, M.max, nfolds)
@@ -167,7 +195,8 @@ adaboost.cv <- function(M.max, full.train, nfolds, target, lam=1, bag=1, seed=11
                                test.x=as.matrix(data.val[,-target]),
                                test.y=data.val[,target],
                                loss="exponential", type="discrete",
-                               iter=M.max, nu=lam, bag.frac=bag)
+                               iter=M.max, nu=lam, bag.frac=bag,
+                               control=control)
 
       mod.adaboost$model$errs[,3]
     }
@@ -183,7 +212,7 @@ adaboost.cv <- function(M.max, full.train, nfolds, target, lam=1, bag=1, seed=11
 
 adaboost.vip <- function(target, train, M, nu, bag, seed=111) {
   vars.boost <- rep(0, ncol(train) - 1)  # sum of importances
-  avg.run <- 30  # runs
+  avg.run <- 20  # runs
 
   set.seed(seed)
   for (i in 1:avg.run) {

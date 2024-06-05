@@ -25,8 +25,8 @@ library(ggplot2)
 ## Dataset
 
 Binary classification problem
-- No disease (-1)
-- Disease (1)
+- good (1)
+- bad (0)
 
 ```{r}
 dat <- read.csv("../data/apple_quality.csv")
@@ -46,19 +46,14 @@ target <- 8
 dataset.distrib(dat[,target])
 ```
 
-- age
-- sex
-- chest pain type (4 values)
-- resting blood pressure
-- serum cholestoral in mg/dl
-- fasting blood sugar > 120 mg/dl (true or false)
-- resting electrocardiographic results (values 0,1,2)
-- maximum heart rate achieved
-- exercise induced angina (yes or no)
-- oldpeak = ST depression induced by exercise relative to rest
-- the slope of the peak exercise ST segment
-- number of major vessels (0-3) colored by flourosopy
-- thal: 0 = normal; 1 = fixed defect; 2 = reversable defect
+- **Size**: size of the apple
+- **Weight**: weight of the apple
+- **Sweetness**: how sweet an apple is (Grado di dolcezza del frutto (concentrazione di zuccheri))
+- **Crunchiness**: how crisp the apple is (Croccantezza sulla base della consistenza del frutto)
+- **Juiciness**: how juicy an apple is (Succosità)
+- **Ripeness**: how ripe an apple is (Stato di deperibilità del frutto, quanto è maturo)
+- **Acidity**: how acid an apple is (Acidità (contenuto e composizione di acidi organici))
+- **Quality**: the quality is *good* or *bad*
 
 ```{r}
 boxplot(scale(dat[,-target]))
@@ -100,12 +95,12 @@ dat.test <- dat[-train.idx,]
 
 
 
-## Clustering
+## Performance
 
 ```{r}
-set.seed(111)
-heart.clust <- kmeans(heart[,-target], 2, nstart=20)
+
 ```
+
 
 
 
@@ -304,7 +299,7 @@ Diagnostic
 
 ```{r}
 plot(rf.grown, lty=c(1,1,1), lwd=3)
-abline(v=rf.ntree, lwd=2, lty=2)
+abline(v=rf.ntree, lwd=3, lty=2)
 
 # pdf("./plots/biasvar-rf-apple.pdf")
 plot(seq(rf.grown$ntree), rf.grown$err.rate[,"OOB"], type="l", lwd=3,
@@ -351,82 +346,249 @@ library(ada)
 ```
 
 ```{r}
-## rivedere e rifare che sto pacchetto m'ha fottuto
-ada.stump <- rpart.control(maxdepth=30, cp=-1, minsplit=20, xval=10)
-ada.depth2 <- rpart.control(maxdepth=2, cp=-1, minsplit=20, xval=10)
+# decision stump
+ada.stump <- rpart.control(maxdepth=1, cp=-1, minsplit=0, xval=0)
+# maximum depth = 2
+ada.depth2 <- rpart.control(maxdepth=2, cp=-1)
+# maximum depth = 3
+ada.depth3 <- rpart.control(maxdepth=3, cp=-1)
 
-ada.M <- 1000
-ada.nu <- 0.1
-ada.bag <- 0.5
+ada.M <- 2000
+ada.nu <- 1
+ada.bag <- 1
 
 str(rpart.control())
 str(ada.stump)
 str(ada.depth2)
+str(ada.depth3)
 ```
+
+
+### Base learners
+
+```{r}
+auto.tree <- function(depths, plot=FALSE) {
+  tree.metrics <- matrix(NA, length(depths), 2)
+  colnames(tree.metrics) <- c("Train err", "Test err")
+  rownames(tree.metrics) <- rep(NA, length(depths))
+
+  i <- 1
+  for (d in depths) {
+    rownames(tree.metrics)[i] <- paste0("d=", d)
+
+    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    tree <- rpart(Outcome ~ ., data=dat.train, method="class", control=control)
+
+    if (plot) {rpart.plot(tree)}
+
+    tree.train <- accuracy.score(dat.train$Outcome, predict(tree, type="class"))
+    tree.test <- accuracy.score(dat.test$Outcome,
+                                predict(tree, type="class",
+                                        newdata=dat.test[,-target]))
+
+    tree.metrics[i,] <- c(1 - tree.train, 1 - tree.test)
+    i <- i + 1
+  }
+
+  return(tree.metrics)
+}
+```
+
+```{r}
+# weak.err <- auto.tree(c(1,2,3), TRUE)
+
+weak.err <- tree.cv(1, dat.train, formula(Outcome ~ .), target)
+weak.err
+```
+
 
 ### Boost the trees
 
 ```{r}
-set.seed(111)
-adaboost <- ada::ada(x=as.matrix(dat.train[,-target]),
-                     y=dat.train[,target],
-                     test.x=as.matrix(dat.test[,-target]),
-                     test.y=dat.test[,target],
-                     loss="exponential", type="discrete",
-                     iter=ada.M, nu=ada.nu, bag.frac=ada.bag,
-                     control=ada.depth2)
+auto.ada <- function(params, plot=FALSE, metrics=FALSE) {
+  # params: {depth, nu, bag.frac}
+  combos <- dim(params)[1]  # number of combinations
+
+  ## Training error
+  ada.train.err <- matrix(NA, ada.M, combos)
+  colnames(ada.train.err) <- rep(NA, combos)
+
+  ## Test error
+  ada.cv.err <- matrix(NA, ada.M, combos)
+  colnames(ada.cv.err) <- rep(NA, combos)
+
+  for (combo in 1:combos) {
+    colnames(ada.train.err)[combo] <- paste0("Train (", paste0(params[combo,], collapse=","), ")")
+    colnames(ada.cv.err)[combo] <- paste0("CV (", paste0(params[combo,], collapse=","), ")")
+
+    d <- params[combo,1]  # weak learner depth
+    nu <- params[combo,2]  # shrinkage
+    bag <- params[combo,3]  # subsampling fraction
+
+    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+
+    set.seed(111)
+    adaboost <- ada::ada(x=as.matrix(dat.train[,-target]), y=dat.train[,target],
+                         test.x=as.matrix(dat.test[,-target]), test.y=dat.test[,target],
+                         loss="exponential", type="discrete", iter=ada.M,
+                         nu=nu, bag.frac=bag, control=control)
+
+    ada.cv <- adaboost.cv(ada.M, dat.train, 5, target, control=control, lam=nu, bag=bag)
+
+    if (plot) {plot(adaboost, FALSE, TRUE)}
+
+    ada.train.err[,combo] <- adaboost$model$errs[,1]
+    ada.cv.err[,combo] <- ada.cv
+
+  }
+
+  if (metrics) {
+    for (combo in 1:combos) {
+      M <- which.min(ada.cv.err[,combo])
+
+      print(paste0("AdaBoost (", paste0(params[combo,], collapse=","), "), ", "M*: ", M))
+      print(paste0("Train error: ", ada.train.err[M,combo]))
+      print(paste0("CV error: ", ada.cv.err[M,combo]))
+    }
+  }
+
+  return(cbind(ada.train.err, ada.cv.err))
+}
 ```
 
+Fix one hyperparameter then choose another one, show shrinkage influence. Keep the base learner depth fixed first
+
+Tune the shrinkage
 
 ```{r}
-adaboost.cv.err <- adaboost.cv(ada.M, dat.train, 5, target, ada.nu, ada.bag)
-M.cross <- which.min(adaboost.cv.err)
+ada.err1 <- auto.ada(matrix(c(1, 1, 1,
+                              1, 0.1, 1,
+                              1, 0.01, 1),
+                            ncol=3, byrow=TRUE), FALSE, TRUE)
 ```
 
-```{r}
-set.seed(111)
-adaboost.2 <- ada::ada(x=as.matrix(dat.train[,-target]),
-                     y=dat.train[,target],
-                     test.x=as.matrix(dat.test[,-target]),
-                     test.y=dat.test[,target],
-                     loss="exponential", type="discrete",
-                     iter=ada.M, nu=ada.nu, bag.frac=ada.bag)
-
-adaboost.cv.err <- adaboost.cv(ada.M, dat.train, 5, target, ada.nu, ada.bag)
-M.cross <- which.min(adaboost.cv.err)
-```
-
+Siccome tra nu=1 e nu=0.1 cambia poco in termini di CV error si sceglie nu=1 che impiega molte meno iterazioni
+Considerando anche che il dataset è bilanciato, rallentare il learning non influisce molto
 
 ```{r}
-paste0("Boosting trees (stumps): ", M.cross)
-paste0("Boosting trees (depth2): ", M.cross)
-```
+ada.palette1 <- colorRampPalette(brewer.pal(6, "Dark2"))(dim(ada.err1)[2]/2)
 
-```{r}
-plot(adaboost, FALSE, TRUE)
 
-# pdf("./plots/biasvar-ada-apple.pdf")
-matplot(seq(ada.M), cbind(adaboost$model$errs[,1], adaboost.cv.err),
-        type=c("l", "l"), lty=c(1, 1), lwd=3, col=colors.biasvar, log="x",
-        xlab="Rounds of boosting", ylab="Error rate",
-        main="Bias-Variance tradeoff", ylim=c(0, 0.25))
+## train error performance
+matplot(ada.err1[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="Train error rate", col=ada.palette1)
 
-# lines(adaboost.st$model$errs[,3], lty=1, lwd=3, col="purple")
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err1[,i])}),
+       lty=2, lwd=3, col=ada.palette1)
 
-abline(v=M.cross, lty=2, lwd=3)
+legend("topright", legend=c(colnames(ada.err1[,c(1,2,3)])),
+       col=c(ada.palette1), lty=1, lwd=3, cex=1.5, bg="white")
 
-abline(h=tree.err, lty=3, lwd=2)
-text(x=50, y=tree.err*0.96, cex=1.3,
-     paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
 
-# abline(h=adaboost.st$model$errs[1,1], lty=3, lwd=2)
-# text(x=12, y=adaboost.st$model$errs[1,1]*0.96, "Single stump", cex=0.85)
+## CV error performance
+# pdf("./plots/tune-nu-ada-apple.pdf")
+matplot(ada.err1[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="CV error rate", col=ada.palette1)
 
-legend("bottomleft", legend=c("Train", "CV", paste("M*=", M.cross, sep="")),
-       col=c(colors.biasvar, "black"),
-       lty=c(1, 1, 2), lwd=3, cex=1.5, bg="white")
+# abline(h=weak.err, lty=3, lwd=2)
+# text(x=60, y=weak.err*0.98, cex=1.3, paste0("stump"))
+
+# abline(h=tree.err, lty=3, lwd=2)
+# text(x=20, y=tree.err*0.96, cex=1.3,
+#      paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
+
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err1[,i])}),
+       lty=2, lwd=3, col=ada.palette1)
+
+legend("topright", legend=c(colnames(ada.err1[,-c(1,2,3)])),
+       col=c(ada.palette1), lty=1, lwd=3, cex=1.5, bg="white")
 # dev.off()
 ```
+
+Tune the subsampling fraction
+
+```{r}
+ada.err <- auto.ada(matrix(c(1, 1, 1,
+                             1, 1, 0.5,
+                             1, 1, 0.3),
+                           ncol=3, byrow=TRUE), FALSE, TRUE)
+```
+
+```{r}
+ada.err2 <- auto.ada(matrix(c(1, 0.1, 1,
+                              1, 0.1, 0.5,
+                              1, 0.1, 0.3),
+                           ncol=3, byrow=TRUE), FALSE, TRUE)
+```
+
+Si sceglie bag=0.5, anche se non cambia molto dagli altri due
+
+```{r}
+ada.palette <- colorRampPalette(brewer.pal(4, "Set1"))(dim(ada.err2)[2]/2)
+
+
+## train error performance
+matplot(ada.err2[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="Train error rate", col=ada.palette)
+
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err2[,i])}),
+       lty=2, lwd=3, col=ada.palette)
+
+legend("topright", legend=c(colnames(ada.err2[,c(1,2,3)])),
+       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+
+
+## CV error performance
+# pdf("./plots/tune-bag-ada-apple.pdf")
+matplot(ada.err2[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="CV error rate", col=ada.palette)
+
+# abline(h=)
+
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err2[,i])}),
+       lty=2, lwd=3, col=ada.palette)
+
+legend("topright", legend=c(colnames(ada.err2[,-c(1,2,3)])),
+       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+# dev.off()
+```
+
+```{r}
+ada.palette <- colorRampPalette(brewer.pal(4, "Set1"))(dim(ada.err)[2]/2)
+
+
+## train error performance
+matplot(ada.err[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="Train error rate", col=ada.palette)
+
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err[,i])}),
+       lty=2, lwd=3, col=ada.palette)
+
+legend("topright", legend=c(colnames(ada.err[,c(1,2,3)])),
+       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+
+
+## CV error performance
+# pdf("./plots/tune-bag-ada-apple.pdf")
+matplot(ada.err[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
+        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
+        ylab="CV error rate", col=ada.palette)
+
+# abline(h=)
+
+abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err[,i])}),
+       lty=2, lwd=3, col=ada.palette)
+
+legend("topright", legend=c(colnames(ada.err[,-c(1,2,3)])),
+       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+# dev.off()
+```
+
 
 ### Final model
 
@@ -437,7 +599,24 @@ adaboost.opt <- ada::ada(x=as.matrix(dat.train[,-target]),
                          test.x=as.matrix(dat.test[,-target]),
                          test.y=dat.test[,target],
                          loss="exponential", type="discrete",
-                         iter=M.cross, nu=ada.nu, bag.frac=ada.bag)
+                         iter=152, nu=1, bag.frac=0.5,
+                         control=ada.stump)
+
+# adaboost.opt2 <- ada::ada(x=as.matrix(dat.train[,-target]),
+#                          y=dat.train[,target],
+#                          test.x=as.matrix(dat.test[,-target]),
+#                          test.y=dat.test[,target],
+#                          loss="exponential", type="gentle",
+#                          iter=M.cross, nu=ada.nu, bag.frac=ada.bag,
+#                          control=ada.stump)
+```
+
+```{r}
+summary(adaboost.opt)
+# summary(adaboost.opt2)
+
+# plot(adaboost.opt, FALSE, TRUE)
+# plot(adaboost.opt2, FALSE, TRUE)
 ```
 
 ```{r}
@@ -445,9 +624,12 @@ summary(adaboost.opt)
 
 # plot(adaboost.opt, FALSE, TRUE)
 
-first.metrics(dat.train$Outcome, predict(adaboost.opt, newdata=dat.train, type="vector"),
-              dat.test$Outcome, predict(adaboost.opt, newdata=dat.test, type="vector"))
+first.metrics(dat.train$Outcome,
+              predict(adaboost.opt, newdata=dat.train, type="vector"),
+              dat.test$Outcome,
+              predict(adaboost.opt, newdata=dat.test, type="vector"))
 ```
+
 
 ### Variable importance
 
@@ -466,6 +648,10 @@ dotchart(as.numeric(boost.avgvip),
 
 In base allo stato di deperibilità (Ripeness) la RF determina de è buona o cattiva, AdaBoost in base alla conseguenza che è la croccantezza (Crunchiness)
 
+```{r}
+sum(boost.avgvip)
+```
+
 
 
 ## Super learner
@@ -477,6 +663,7 @@ Learners:
 - `SL.rpart`
 - `SL.rpartPrune`
 - `SL.glmnet`
+- `SL.gbm`??
 
 ```{r}
 library(SuperLearner)
@@ -674,9 +861,11 @@ stopCluster(cluster)
 ```{r}
 print(sl.final)
 
+# pdf("./plots/coef-sl-apple.pdf")
 dotchart(sort(sl.final$coef),
          main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
          col=ifelse(sort(sl.final$coef)==0, "red", "black"))
+# dev.off()
 # abline(v=0, lty=2, lwd=2)
 ```
 

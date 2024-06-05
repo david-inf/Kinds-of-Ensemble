@@ -2,7 +2,7 @@
 
 ## Topic description
 
-Binary classification on Heart disease dataset
+Binary classification on apple quality dataset.
 
 Methods:
 - **kNN**, package `FNN` with CV (from scratch) for optimal k.

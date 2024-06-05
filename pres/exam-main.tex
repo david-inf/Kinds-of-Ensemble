@@ -25,7 +25,7 @@
 %\mode<all>
 % ------------------ %
 %% Floating objects %%
-\graphicspath{{../r/plots/},{./Figures/}}
+\graphicspath{{../r-StatsLearn-Exam/src/plots/},{./Figures/}}
 \usepackage{booktabs}
 %\usepackage{caption}
 %\captionsetup{format=hang,labelsep=colon}%,font={small,rm},labelfont={sf,bf}}
@@ -33,8 +33,8 @@
 % ------------------ %
 %% Mathematical stuffs %%
 \usepackage{mathtools}
-%\newcommand{\numberset}{\mathbb}
-%\newcommand{\R}{\numberset{R}}
+\newcommand{\numberset}{\mathbb}
+\newcommand{\R}{\numberset{R}}
 \DeclareMathOperator{\sign}{sign}
 \DeclareMathOperator*{\argmin}{arg\,min}
 \DeclareMathOperator*{\argmax}{arg\,max}
@@ -61,6 +61,16 @@ inner sep=0.5pt,outer sep=0pt,fill=mLightBrown!20,font=\footnotesize]
 inner xsep=0pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
 \tikzstyle{cloud3} = [draw,ellipse,centered,text centered,text width=1cm,
 inner ysep=5pt,inner xsep=0pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
+
+\tikzstyle{immagine} = [above right,inner sep=0pt,outer sep=0pt]
+
+%\tikzset{immagine/.style={},
+%	testo/.style={fill=white,align=center,fill opacity=0,text opacity=1,below right,
+%		font=\scriptsize},
+%	testo1/.style={fill=white,align=center,fill opacity=0,text opacity=1,below right,
+%		font=\tiny},
+%	testo2/.style={fill=white,align=center,fill opacity=0,text opacity=1,above right,
+%		font=\tiny}}
 % ------------------ %
 %% Code %%
 % ------------------ %
@@ -106,7 +116,7 @@ inner ysep=5pt,inner xsep=0pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
 %% Presentation cover %%
 %\title{Kinds of Gradient Boosting}
 \title{Kinds of Ensembles}
-\subtitle{Tested on \dots dataset}
+\subtitle{Tested on apple quality dataset}
 \author{David Nardi}
 \date{June 11, 2024}
 \institute[UniFi]{MSc in AI, University of Florence}
