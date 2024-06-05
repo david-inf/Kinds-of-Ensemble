@@ -99,6 +99,41 @@ first.metrics <- function(train.true, train.pred, test.true=NULL, test.pred=NULL
 }
 
 
+## plotting
+
+# plot adaboost performance over iterations
+plot.ada <- function(ada.err, ...) {
+  # ada.err: errors that one wants to plot
+  
+  n.perf <- dim(ada.err)[2]  # number of performances
+  ada.palette <- colorRampPalette(brewer.pal(6, "Dark2"))(n.perf)
+  
+  matplot(ada.err, type="l", lty=1, lwd=3, log="x",
+          xlab="Rounds of boosting", ylab="CV error rate",
+          col=ada.palette, cex.main=1.5, ...)
+  
+  # abline(h=weak.err, lty=3, lwd=2)
+  # text(x=60, y=weak.err*0.98, cex=1.3, paste0("stump"))
+  
+  # abline(h=tree.err, lty=3, lwd=2)
+  # text(x=20, y=tree.err*0.96, cex=1.3,
+  #      paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
+  
+  abline(v=sapply(seq(n.perf), function(i) {which.min(ada.err[,i])}),
+         lty=2, lwd=3, col=ada.palette)
+  
+  legend("topright", legend=c(colnames(ada.err)),
+         col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+}
+
+
+# plot adaboost average variable importance
+plot.ada.vip <- function(scores, ...) {
+  dotchart(as.numeric(scores), names(scores), pch=19, xlab="Score",
+           cex.main=1.5, pt.cex=1.5, ...)
+}
+
+
 ## Cross-Validation
 
 # knn cross-validation
@@ -210,16 +245,22 @@ adaboost.cv <- function(M.max, full.train, nfolds, target, control=rpart.control
 
 ## AdaBoost average variable importance
 
-adaboost.vip <- function(target, train, M, nu, bag, seed=111) {
+adaboost.vip <- function(target, train, d, M, nu, bag, seed=111) {
   vars.boost <- rep(0, ncol(train) - 1)  # sum of importances
   avg.run <- 20  # runs
+
+  if (d > 1) {
+    control <- rpart.control(maxdepth=d, cp=-1, maxcompete=1, xval=0)
+  } else {
+    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+  }
 
   set.seed(seed)
   for (i in 1:avg.run) {
     # for each m the bootstrap is different
     boost.vip.mod <- ada::ada(x=as.matrix(train[,-target]), y=train[,target],
                               loss="exponential", type="discrete",
-                              iter=M, nu=nu, bag.frac=bag)
+                              iter=M, nu=nu, bag.frac=bag, control=control)
     # get current importances
     boost.vip <- varplot(boost.vip.mod, plot.it=FALSE, type="scores")
     # set scores order by variable name

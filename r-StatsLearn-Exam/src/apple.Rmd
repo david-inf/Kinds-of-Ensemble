@@ -46,6 +46,10 @@ target <- 8
 dataset.distrib(dat[,target])
 ```
 
+```{r}
+sum(duplicated(dat))
+```
+
 - **Size**: size of the apple
 - **Weight**: weight of the apple
 - **Sweetness**: how sweet an apple is (Grado di dolcezza del frutto (concentrazione di zuccheri))
@@ -272,6 +276,7 @@ first.metrics(dat.train$Outcome, predict(tree.pr, type="class"),
 paste0("Terminal nodes: ", sum(tree.pr$frame$var == "<leaf>"))
 ```
 
+C'è overfitting ma non troppo
 
 
 ## Random forest
@@ -301,10 +306,12 @@ Diagnostic
 plot(rf.grown, lty=c(1,1,1), lwd=3)
 abline(v=rf.ntree, lwd=3, lty=2)
 
+rf.palette <- colorRampPalette(brewer.pal(5, "Set1"))(4)
+
 # pdf("./plots/biasvar-rf-apple.pdf")
 plot(seq(rf.grown$ntree), rf.grown$err.rate[,"OOB"], type="l", lwd=3,
-     xlab="ntree", ylab="OOB error", col=colors.biasvar[2],
-     main="Bias-Variance tradeoff")
+     xlab="ntree", ylab="OOB error", col=rf.palette[1],
+     main="Bias-Variance tradeoff", cex.main=1.5)
 abline(v=rf.ntree, lwd=2, lty=2)
 # dev.off()
 ```
@@ -332,7 +339,7 @@ first.metrics(dat.train[,target], as.numeric(as.character(rf.opt$predicted)),
 
 ```{r}
 # pdf("./plots/vip-rf-apple.pdf")
-varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5, main="Variable importance")
+varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5, cex.main=1.5, main="Variable importance")
 # dev.off()
 # importance(rf, type=1)
 ```
@@ -348,19 +355,12 @@ library(ada)
 ```{r}
 # decision stump
 ada.stump <- rpart.control(maxdepth=1, cp=-1, minsplit=0, xval=0)
-# maximum depth = 2
-ada.depth2 <- rpart.control(maxdepth=2, cp=-1)
-# maximum depth = 3
-ada.depth3 <- rpart.control(maxdepth=3, cp=-1)
-
-ada.M <- 2000
-ada.nu <- 1
-ada.bag <- 1
+# bigger depth
+ada.depth <- rpart.control(maxdepth=10, cp=-1, maxcompete=1, xval=0)
 
 str(rpart.control())
 str(ada.stump)
-str(ada.depth2)
-str(ada.depth3)
+str(ada.depth)
 ```
 
 
@@ -405,16 +405,16 @@ weak.err
 ### Boost the trees
 
 ```{r}
-auto.ada <- function(params, plot=FALSE, metrics=FALSE) {
+auto.ada <- function(params, M=1000, plot=FALSE, metrics=FALSE) {
   # params: {depth, nu, bag.frac}
   combos <- dim(params)[1]  # number of combinations
 
   ## Training error
-  ada.train.err <- matrix(NA, ada.M, combos)
+  ada.train.err <- matrix(NA, M, combos)
   colnames(ada.train.err) <- rep(NA, combos)
 
   ## Test error
-  ada.cv.err <- matrix(NA, ada.M, combos)
+  ada.cv.err <- matrix(NA, M, combos)
   colnames(ada.cv.err) <- rep(NA, combos)
 
   for (combo in 1:combos) {
@@ -425,15 +425,19 @@ auto.ada <- function(params, plot=FALSE, metrics=FALSE) {
     nu <- params[combo,2]  # shrinkage
     bag <- params[combo,3]  # subsampling fraction
 
-    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    if (d > 1) {
+      control <- rpart.control(maxdepth=d, cp=-1, maxcompete=1, xval=0)
+    } else {
+      control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    }
 
     set.seed(111)
     adaboost <- ada::ada(x=as.matrix(dat.train[,-target]), y=dat.train[,target],
                          test.x=as.matrix(dat.test[,-target]), test.y=dat.test[,target],
-                         loss="exponential", type="discrete", iter=ada.M,
+                         loss="exponential", type="discrete", iter=M,
                          nu=nu, bag.frac=bag, control=control)
 
-    ada.cv <- adaboost.cv(ada.M, dat.train, 5, target, control=control, lam=nu, bag=bag)
+    ada.cv <- adaboost.cv(M, dat.train, 5, target, control=control, lam=nu, bag=bag)
 
     if (plot) {plot(adaboost, FALSE, TRUE)}
 
@@ -458,199 +462,146 @@ auto.ada <- function(params, plot=FALSE, metrics=FALSE) {
 
 Fix one hyperparameter then choose another one, show shrinkage influence. Keep the base learner depth fixed first
 
+#### Decision stump tuning
+
 Tune the shrinkage
 
 ```{r}
 ada.err1 <- auto.ada(matrix(c(1, 1, 1,
-                              1, 0.1, 1,
-                              1, 0.01, 1),
-                            ncol=3, byrow=TRUE), FALSE, TRUE)
+                              1, 0.1, 1),
+                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
 ```
+
+Tune the shrinkage with subsampling fraction
+
+```{r}
+ada.err2 <- auto.ada(matrix(c(1, 1, 0.5,
+                              1, 0.1, 0.5),
+                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
+```
+
+Considerare che le performance del subsampling sono influenzate dal seed. In un contesto reale andrebbe fatta una simulazione per vedere l'errore medio
 
 Siccome tra nu=1 e nu=0.1 cambia poco in termini di CV error si sceglie nu=1 che impiega molte meno iterazioni
 Considerando anche che il dataset è bilanciato, rallentare il learning non influisce molto
 
+In letteratura non viene evidenziata un'esplicita dipendenza dei parametri, ci si può permettere di fare una grid search
+
+- Lo shrinkage rallenta il processo di learning
+- Il subsampling abbassa il CV error
+
 ```{r}
-ada.palette1 <- colorRampPalette(brewer.pal(6, "Dark2"))(dim(ada.err1)[2]/2)
-
-
-## train error performance
-matplot(ada.err1[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="Train error rate", col=ada.palette1)
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err1[,i])}),
-       lty=2, lwd=3, col=ada.palette1)
-
-legend("topright", legend=c(colnames(ada.err1[,c(1,2,3)])),
-       col=c(ada.palette1), lty=1, lwd=3, cex=1.5, bg="white")
-
-
-## CV error performance
-# pdf("./plots/tune-nu-ada-apple.pdf")
-matplot(ada.err1[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="CV error rate", col=ada.palette1)
-
-# abline(h=weak.err, lty=3, lwd=2)
-# text(x=60, y=weak.err*0.98, cex=1.3, paste0("stump"))
-
-# abline(h=tree.err, lty=3, lwd=2)
-# text(x=20, y=tree.err*0.96, cex=1.3,
-#      paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err1[,i])}),
-       lty=2, lwd=3, col=ada.palette1)
-
-legend("topright", legend=c(colnames(ada.err1[,-c(1,2,3)])),
-       col=c(ada.palette1), lty=1, lwd=3, cex=1.5, bg="white")
+# pdf("./plots/biasvar-ada1-apple.pdf")
+plot.ada(cbind(ada.err1[,-c(1,2)], ada.err2[,-c(1,2)]), main="Bias-Variance tradeoff d=1")
 # dev.off()
 ```
 
-Tune the subsampling fraction
+#### Tree with depth tuning
+
+Tune the shrinkage
 
 ```{r}
-ada.err <- auto.ada(matrix(c(1, 1, 1,
-                             1, 1, 0.5,
-                             1, 1, 0.3),
-                           ncol=3, byrow=TRUE), FALSE, TRUE)
+ada.err3 <- auto.ada(matrix(c(10, 1, 1,
+                              10, 0.1, 1),
+                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
 ```
 
+Tune the shrinkage with subsampling fraction
+
 ```{r}
-ada.err2 <- auto.ada(matrix(c(1, 0.1, 1,
-                              1, 0.1, 0.5,
-                              1, 0.1, 0.3),
-                           ncol=3, byrow=TRUE), FALSE, TRUE)
+ada.err4 <- auto.ada(matrix(c(10, 1, 0.5,
+                              10, 0.1, 0.5),
+                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
 ```
 
-Si sceglie bag=0.5, anche se non cambia molto dagli altri due
+I subsampling migliora notevolmente le performance dello shrinkage, combinare questi due parametri ha grande influenza sulle performance
+
+Aumentare la profondità degli alberi implica, in questo caso, un maggior numero di iterazioni, ma non è vero in generale
 
 ```{r}
-ada.palette <- colorRampPalette(brewer.pal(4, "Set1"))(dim(ada.err2)[2]/2)
-
-
-## train error performance
-matplot(ada.err2[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="Train error rate", col=ada.palette)
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err2[,i])}),
-       lty=2, lwd=3, col=ada.palette)
-
-legend("topright", legend=c(colnames(ada.err2[,c(1,2,3)])),
-       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
-
-
-## CV error performance
-# pdf("./plots/tune-bag-ada-apple.pdf")
-matplot(ada.err2[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="CV error rate", col=ada.palette)
-
-# abline(h=)
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err2[,i])}),
-       lty=2, lwd=3, col=ada.palette)
-
-legend("topright", legend=c(colnames(ada.err2[,-c(1,2,3)])),
-       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
+# pdf("./plots/biasvar-ada2-apple.pdf")
+plot.ada(cbind(ada.err3[,-c(1,2)], ada.err4[,-c(1,2)]), main="Bias-Variance tradeoff d=10")
 # dev.off()
 ```
 
-```{r}
-ada.palette <- colorRampPalette(brewer.pal(4, "Set1"))(dim(ada.err)[2]/2)
-
-
-## train error performance
-matplot(ada.err[,c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="Train error rate", col=ada.palette)
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err[,i])}),
-       lty=2, lwd=3, col=ada.palette)
-
-legend("topright", legend=c(colnames(ada.err[,c(1,2,3)])),
-       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
-
-
-## CV error performance
-# pdf("./plots/tune-bag-ada-apple.pdf")
-matplot(ada.err[,-c(1,2,3)], type="l", lty=1, lwd=3, log="x",
-        main="Bias-Variance tradeoff", xlab="Rounds of boosting",
-        ylab="CV error rate", col=ada.palette)
-
-# abline(h=)
-
-abline(v=sapply(c(4,5,6), function(i) {which.min(ada.err[,i])}),
-       lty=2, lwd=3, col=ada.palette)
-
-legend("topright", legend=c(colnames(ada.err[,-c(1,2,3)])),
-       col=c(ada.palette), lty=1, lwd=3, cex=1.5, bg="white")
-# dev.off()
-```
 
 
 ### Final model
 
+AdaBoost with decision stumps
+
 ```{r}
 set.seed(111)
-adaboost.opt <- ada::ada(x=as.matrix(dat.train[,-target]),
+adaboost.opt1 <- ada::ada(x=as.matrix(dat.train[,-target]),
                          y=dat.train[,target],
                          test.x=as.matrix(dat.test[,-target]),
                          test.y=dat.test[,target],
                          loss="exponential", type="discrete",
-                         iter=152, nu=1, bag.frac=0.5,
+                         iter=901, nu=0.1, bag.frac=0.5,
                          control=ada.stump)
+```
 
-# adaboost.opt2 <- ada::ada(x=as.matrix(dat.train[,-target]),
-#                          y=dat.train[,target],
-#                          test.x=as.matrix(dat.test[,-target]),
-#                          test.y=dat.test[,target],
-#                          loss="exponential", type="gentle",
-#                          iter=M.cross, nu=ada.nu, bag.frac=ada.bag,
-#                          control=ada.stump)
+AdaBoost with base learner of greater depth
+
+```{r}
+set.seed(111)
+adaboost.opt2 <- ada::ada(x=as.matrix(dat.train[,-target]),
+                         y=dat.train[,target],
+                         test.x=as.matrix(dat.test[,-target]),
+                         test.y=dat.test[,target],
+                         loss="exponential", type="gentle",
+                         iter=252, nu=0.1, bag.frac=0.5,
+                         control=ada.depth)
 ```
 
 ```{r}
-summary(adaboost.opt)
-# summary(adaboost.opt2)
+summary(adaboost.opt1)
+summary(adaboost.opt2)
 
 # plot(adaboost.opt, FALSE, TRUE)
 # plot(adaboost.opt2, FALSE, TRUE)
 ```
 
 ```{r}
-summary(adaboost.opt)
-
-# plot(adaboost.opt, FALSE, TRUE)
+first.metrics(dat.train$Outcome,
+              predict(adaboost.opt1, newdata=dat.train, type="vector"),
+              dat.test$Outcome,
+              predict(adaboost.opt1, newdata=dat.test, type="vector"))
 
 first.metrics(dat.train$Outcome,
-              predict(adaboost.opt, newdata=dat.train, type="vector"),
+              predict(adaboost.opt2, newdata=dat.train, type="vector"),
               dat.test$Outcome,
-              predict(adaboost.opt, newdata=dat.test, type="vector"))
+              predict(adaboost.opt2, newdata=dat.test, type="vector"))
 ```
 
 
 ### Variable importance
 
+Variable importance for decision stump
+
 ```{r}
-boost.avgvip <- adaboost.vip(target, dat.train, M.cross, ada.nu, ada.bag)
-boost.avgvip <- sort(boost.avgvip)
+boost.avgvip1 <- adaboost.vip(target, dat.train, 1, 901, 0.1, 0.5)
+boost.avgvip1 <- sort(boost.avgvip1)
+```
+
+Variable importance for bigger trees
+
+```{r}
+boost.avgvip2 <- adaboost.vip(target, dat.train, 10, 152, 0.1, 0.5)
+boost.avgvip2 <- sort(boost.avgvip2)
 ```
 
 ```{r}
-# pdf("./plots/vip-ada-apple.pdf")
-dotchart(as.numeric(boost.avgvip),
-         names(boost.avgvip),
-         main="Average Variable Importance", pch=19, xlab="Score", pt.cex=1.5)
-# dev.off()
+pdf("./plots/vip-ada1-apple.pdf")
+plot.ada.vip(boost.avgvip1, main="Average variable importance d=1")
+dev.off()
+
+pdf("./plots/vip-ada2-apple.pdf")
+plot.ada.vip(boost.avgvip2, main="Average variable importance d=10")
+dev.off()
 ```
 
-In base allo stato di deperibilità (Ripeness) la RF determina de è buona o cattiva, AdaBoost in base alla conseguenza che è la croccantezza (Crunchiness)
 
-```{r}
-sum(boost.avgvip)
-```
 
 
 
@@ -864,7 +815,7 @@ print(sl.final)
 # pdf("./plots/coef-sl-apple.pdf")
 dotchart(sort(sl.final$coef),
          main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
-         col=ifelse(sort(sl.final$coef)==0, "red", "black"))
+         col=ifelse(sort(sl.final$coef)==0, "red", "black"), cex.main=1.5)
 # dev.off()
 # abline(v=0, lty=2, lwd=2)
 ```
