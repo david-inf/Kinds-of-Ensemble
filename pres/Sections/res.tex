@@ -1,0 +1,24 @@
+% !TeX spellcheck = en_GB
+
+\begin{frame}{Performance}
+
+% il super learner riesce a prendere il meglio da questi modelli??
+
+\begin{table}
+\sisetup{round-mode=places}
+\resizebox{0.9\textwidth}{!}{\vspace*{-1em}%
+\begin{tabular}{lS[round-precision=4]S[round-precision=4]}
+	\toprule
+	Model & {Train score} & {Test score} \\
+	\midrule
+	$k\text{NN}$ & 0.902887139107612 & 0.894973743435859 \\
+	CART & 0.884139482564679 & 0.829014138412355 \\
+	Random forest & 0.880764904386952 & 0.888972243060765 \\
+	$\text{AdaBoost}_{d=1}$ & 0.79827521559805 & 0.792198049512378 \\
+	$\text{AdaBoost}_{d=4}$ & 0.999625046869141 & 0.884471117779445 \\
+	Super learner & 0.98612673415823 & 0.877719429857464 \\
+	\bottomrule
+\end{tabular}}
+\end{table}
+
+\end{frame}

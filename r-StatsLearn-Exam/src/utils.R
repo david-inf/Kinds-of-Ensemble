@@ -1,105 +1,7 @@
 
-## Explore dataset
-
-# class distribution
-dataset.distrib <- function(y) {
-  return(table(y) / length(y))
-}
-
-# histograms
-manyhist <- function(df) {
-  par(mfrow = c(2,2))
-  for (i in 1:ncol(df)) {
-    name = names(df)[i]
-    hist(df[,i], main=name, breaks="FD", ylab="", xlab="",
-         cex.main=2, cex.axis=1.5, las=1)
-  }
-}
-
-
-## Binary classification metrics
-
-# confusion matrix
-confusion.matrix <- function(y.true, y.pred, pos=1, neg=0) {
-  true.pos <- sum(y.pred == pos & y.true == pos)
-  false.pos <- sum(y.pred == pos & y.true == neg)
-  false.neg <- sum(y.pred == neg & y.true == pos)
-  true.neg <- sum(y.pred == neg & y.true == neg)
-
-  # horizontal: predicted class
-  # vertical: actual class
-  #      1  & -1
-  #  1 & TP & FN
-  # -1 & FP & TN
-  mat <- matrix(c(true.pos, false.pos, false.neg, true.neg), 2, 2)
-  rownames(mat) <- colnames(mat) <- as.character(c(pos, neg))
-
-  return(mat)
-}
-
-# accuracy
-accuracy.score <- function(y.true, y.pred) {
-  correct <- sum(diag(confusion.matrix(y.true, y.pred)))
-
-  return(correct / length(y.true))
-}
-
-# recall
-recall.score <- function(y.true, y.pred) {
-  true.pos <- confusion.matrix(y.true, y.pred)[1, 1]
-  false.neg <- confusion.matrix(y.true, y.pred)[1, 2]
-
-  return(true.pos / (true.pos + false.neg))
-}
-
-# specificity
-specificity.score <- function(y.true, y.pred) {
-  true.neg <- confusion.matrix(y.true, y.pred)[2, 2]
-  false.pos <- confusion.matrix(y.true, y.pred)[2, 1]
-
-  return(true.neg / (true.neg + false.pos))
-}
-
-# balanced accuracy
-balaccuracy.score <- function(y.true, y.pred) {
-  return(0.5 * (recall.score(y.true, y.pred) +
-                  specificity.score(y.true, y.pred)))
-}
-
-# F1 score
-f1.score <- function(y.true, y.pred) {
-  true.pos <- confusion.matrix(y.true, y.pred)[1, 1]
-  false.pos <- confusion.matrix(y.true, y.pred)[2, 1]
-  false.neg <- confusion.matrix(y.true, y.pred)[1, 2]
-
-  return(2 * true.pos / (2 * true.pos + false.pos + false.neg))
-}
-
-# misclassification error rate
-misclass.error <- function(y.true, y.pred) {
-  N <- length(y.true)
-
-  return(sum(y.true != y.pred) / N)
-}
-
-
-## Ensemble metrics
-
-# confusion matrix, accuracy, balanced accuracy
-first.metrics <- function(train.true, train.pred, test.true=NULL, test.pred=NULL) {
-  print(confusion.matrix(train.true, train.pred))
-
-  print(paste0("Train score: ", accuracy.score(train.true, train.pred)))
-  print(paste0("Train balanced score: ", balaccuracy.score(train.true, train.pred)))
-
-  if (!is.null(test.true)) {
-    print(paste0("Test score: ", accuracy.score(test.true, test.pred)))
-    print(paste0("Test balanced score: ", balaccuracy.score(test.true, test.pred)))
-  }
-}
-
-
+# ********************** #
 ## plotting
+# ********************** #
 
 # plot adaboost performance over iterations
 plot.ada <- function(ada.err, ...) {
@@ -109,7 +11,7 @@ plot.ada <- function(ada.err, ...) {
   ada.palette <- colorRampPalette(brewer.pal(6, "Dark2"))(n.perf)
   
   matplot(ada.err, type="l", lty=1, lwd=3, log="x",
-          xlab="Rounds of boosting", ylab="CV error rate",
+          xlab="Rounds of boosting",
           col=ada.palette, cex.main=1.5, ...)
   
   # abline(h=weak.err, lty=3, lwd=2)
@@ -134,7 +36,34 @@ plot.ada.vip <- function(scores, ...) {
 }
 
 
+# plot strong learners cv error
+plot.sl.cverr <- function(sl.summary) {
+  n.learners <- length(sl.summary$Table$Algorithm)
+  # CV errors
+  err <- sl.summary$Table$Ave
+  lab <- sl.summary$Table$Algorithm[order(err, decreasing=TRUE)]
+
+  # 95% confidence intervals
+  CIinf <- sl.summary$Table$Ave - qnorm(0.975) * sl.summary$Table$se
+  CIsup <- sl.summary$Table$Ave + qnorm(0.975) * sl.summary$Table$se
+
+  # place the errors as dots
+  dotchart(sort(err, decreasing=TRUE), labels=lab,
+           main="Learners 5-fold CV error", pch=19, xlab="CV error", pt.cex=1.5)
+
+  # add 95% confidence intervals
+  arrows(
+    x0=CIinf[order(err, decreasing=TRUE)],
+    y0=1:n.learners,
+    x1=CIsup[order(err, decreasing=TRUE)],
+    y1=1:n.learners,
+    code=3, angle=90, length=0.05)
+}
+
+
+# ********************** #
 ## Cross-Validation
+# ********************** #
 
 # knn cross-validation
 myknn.cv <- function(full.train, nfolds, target, k.grid=NULL) {
@@ -182,7 +111,7 @@ myknn.cv <- function(full.train, nfolds, target, k.grid=NULL) {
 
 
 # decision tree cross-validation
-tree.cv <- function(d, full.train, formula, target, nfolds=5, seed=111) {
+tree.cv <- function(full.train, formula, target, control, nfolds=5, seed=111) {
   myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
 
   folds.metrics <- c()
@@ -192,7 +121,7 @@ tree.cv <- function(d, full.train, formula, target, nfolds=5, seed=111) {
     data.train <- full.train[myfolds != i,]  # training data
     data.val <- full.train[myfolds == i,]  # validation data
 
-    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    # control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
     tree <- rpart(formula, data=data.train, method="class", control=control)
 
     err <- 1 - accuracy.score(data.val[,target],
@@ -204,6 +133,29 @@ tree.cv <- function(d, full.train, formula, target, nfolds=5, seed=111) {
   }
 
   return(mean(folds.metrics))
+}
+
+
+# random forest cross-validation
+rf.cv <- function(B.max, full.train, nfolds, target, seed=111) {
+  myfolds <- cut(1:nrow(full.train), breaks=nfolds, labels=FALSE)
+
+  folds.metrics <- matrix(NA, B.max, nfolds)
+
+  for (i in 1:nfolds) {
+    set.seed(seed)
+
+    data.train <- full.train[myfolds != i,]  # training data
+    data.val <- full.train[myfolds == i,]  # validation data
+
+    mod.rf <- randomForest(x=data.train[,-target], y=as.factor(data.train[,target]),
+                           xtest=data.val[,-target], ytest=as.factor(data.val[,target]),
+                           ntree=B.max, importance=FALSE)
+
+    folds.metrics[,i] <- mod.rf$test$err.rate[,1]
+  }
+
+  return(rowMeans(folds.metrics))
 }
 
 
@@ -243,17 +195,13 @@ adaboost.cv <- function(M.max, full.train, nfolds, target, control=rpart.control
 }
 
 
+# ********************** #
 ## AdaBoost average variable importance
+# ********************** #
 
-adaboost.vip <- function(target, train, d, M, nu, bag, seed=111) {
+adaboost.vip <- function(target, train, M, nu, bag, control=rpart.control(), seed=111) {
   vars.boost <- rep(0, ncol(train) - 1)  # sum of importances
-  avg.run <- 20  # runs
-
-  if (d > 1) {
-    control <- rpart.control(maxdepth=d, cp=-1, maxcompete=1, xval=0)
-  } else {
-    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
-  }
+  avg.run <- 20  # total runs
 
   set.seed(seed)
   for (i in 1:avg.run) {
@@ -272,7 +220,9 @@ adaboost.vip <- function(target, train, d, M, nu, bag, seed=111) {
 }
 
 
+# ********************** #
 ## Data generating process generation
+# ********************** #
 
 binary1 <- function(n, p1=0.5, mu0=0, mu1=2, sigma=1) {
   set.seed(1)

@@ -6,6 +6,8 @@ date: "2024-05-24"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+source("metrics.R")
 source("utils.R")
 
 plots.dir <- "../plots/"
@@ -18,7 +20,14 @@ library(ggplot2)
 ```
 
 ```{r}
-
+library(glmnet)
+library(FNN)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(ada)
+library(SuperLearner)
+library(parallel)
 ```
 
 
@@ -110,10 +119,6 @@ dat.test <- dat[-train.idx,]
 
 ## Logistic regression
 
-```{r}
-library(glmnet)
-```
-
 ### Ridge regression
 
 ```{r}
@@ -177,10 +182,6 @@ first.metrics(dat.train[,target], predict(logist.net, newx=model.matrix(~.-1, da
 
 k-nearest neighbor classifier
 
-```{r}
-library(FNN)
-```
-
 ### Model selection
 
 Choose optimal k
@@ -223,12 +224,7 @@ first.metrics(dat.train[,target], knn.train,
 
 ## Decision tree
 
-Decision tree classifier
-
-```{r}
-library(rpart)
-library(rpart.plot)
-```
+Decision tree classifier`
 
 ### Model selection
 
@@ -245,8 +241,10 @@ Diagnostic
 
 ```{r}
 # pdf("./plots/cp-tree-apple.pdf")
-plotcp(tree)
-abline(v=which.min(tree$cptable[,"xerror"]), lty=2, col="#B45173", lwd=2)
+plotcp(tree, cex=1.2)
+abline(v=which.min(tree$cptable[,"xerror"]), lty=2, col="#B45173", lwd=3)
+legend("topright", legend=paste0("cp*=", round(mincp, 4)),
+         col="#B45173", lty=2, lwd=3, cex=1.5, bg="white")
 # dev.off()
 ```
 
@@ -281,10 +279,6 @@ C'è overfitting ma non troppo
 
 ## Random forest
 
-```{r}
-library(randomForest)
-```
-
 ### Grow the forest
 
 ```{r}
@@ -300,11 +294,19 @@ paste0("mtry: ", rf.grown$mtry)
 print(rf.grown$confusion)
 ```
 
+```{r}
+# random forest cross-validation, just a check on OOB error rate
+rf.err <- rf.cv(500, dat.train, 5, target)
+```
+
+
 Diagnostic
 
 ```{r}
 plot(rf.grown, lty=c(1,1,1), lwd=3)
 abline(v=rf.ntree, lwd=3, lty=2)
+
+matplot(cbind(rf.grown$err.rate[,1], rf.err), type="l", lty=1, lwd=3)
 
 rf.palette <- colorRampPalette(brewer.pal(5, "Set1"))(4)
 
@@ -349,14 +351,12 @@ varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5, cex.main=1.5, main="Variable impo
 ## AdaBoost
 
 ```{r}
-library(ada)
-```
-
-```{r}
 # decision stump
 ada.stump <- rpart.control(maxdepth=1, cp=-1, minsplit=0, xval=0)
+ada.stump.params <- c(1)  # d=1
 # bigger depth
-ada.depth <- rpart.control(maxdepth=10, cp=-1, maxcompete=1, xval=0)
+ada.depth <- rpart.control(maxdepth=4, cp=-1, maxcompete=1, xval=0)
+ada.depth.params <- c(4)  # d=4
 
 str(rpart.control())
 str(ada.stump)
@@ -367,7 +367,7 @@ str(ada.depth)
 ### Base learners
 
 ```{r}
-auto.tree <- function(depths, plot=FALSE) {
+auto.tree <- function(depths, control, plot=FALSE) {
   tree.metrics <- matrix(NA, length(depths), 2)
   colnames(tree.metrics) <- c("Train err", "Test err")
   rownames(tree.metrics) <- rep(NA, length(depths))
@@ -376,7 +376,7 @@ auto.tree <- function(depths, plot=FALSE) {
   for (d in depths) {
     rownames(tree.metrics)[i] <- paste0("d=", d)
 
-    control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    # control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
     tree <- rpart(Outcome ~ ., data=dat.train, method="class", control=control)
 
     if (plot) {rpart.plot(tree)}
@@ -397,7 +397,7 @@ auto.tree <- function(depths, plot=FALSE) {
 ```{r}
 # weak.err <- auto.tree(c(1,2,3), TRUE)
 
-weak.err <- tree.cv(1, dat.train, formula(Outcome ~ .), target)
+weak.err <- tree.cv(dat.train, formula(Outcome ~ .), target, ada.stump)
 weak.err
 ```
 
@@ -405,7 +405,7 @@ weak.err
 ### Boost the trees
 
 ```{r}
-auto.ada <- function(params, M=1000, plot=FALSE, metrics=FALSE) {
+auto.ada <- function(params, control=rpart.control(), M=1000, plot=FALSE, metrics=FALSE) {
   # params: {depth, nu, bag.frac}
   combos <- dim(params)[1]  # number of combinations
 
@@ -421,15 +421,16 @@ auto.ada <- function(params, M=1000, plot=FALSE, metrics=FALSE) {
     colnames(ada.train.err)[combo] <- paste0("Train (", paste0(params[combo,], collapse=","), ")")
     colnames(ada.cv.err)[combo] <- paste0("CV (", paste0(params[combo,], collapse=","), ")")
 
-    d <- params[combo,1]  # weak learner depth
-    nu <- params[combo,2]  # shrinkage
-    bag <- params[combo,3]  # subsampling fraction
+    # adaboost hyper-parameters
+    # d <- params[combo,1]  # weak learner depth
+    nu <- params[combo,1]  # shrinkage
+    bag <- params[combo,2]  # subsampling fraction
 
-    if (d > 1) {
-      control <- rpart.control(maxdepth=d, cp=-1, maxcompete=1, xval=0)
-    } else {
-      control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
-    }
+    # if (d > 1) {
+    #   control <- rpart.control(maxdepth=d, cp=-1, maxcompete=1, xval=0)
+    # } else {
+    #   control <- rpart.control(maxdepth=d, cp=-1, minsplit=0, xval=0)
+    # }
 
     set.seed(111)
     adaboost <- ada::ada(x=as.matrix(dat.train[,-target]), y=dat.train[,target],
@@ -467,17 +468,19 @@ Fix one hyperparameter then choose another one, show shrinkage influence. Keep t
 Tune the shrinkage
 
 ```{r}
-ada.err1 <- auto.ada(matrix(c(1, 1, 1,
-                              1, 0.1, 1),
-                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
+ada.err1 <- auto.ada(matrix(c(1, 1, 0.1, 1), ncol=2, byrow=TRUE),
+                     control=ada.stump, plot=FALSE, metrics=TRUE)
 ```
 
 Tune the shrinkage with subsampling fraction
 
 ```{r}
-ada.err2 <- auto.ada(matrix(c(1, 1, 0.5,
-                              1, 0.1, 0.5),
-                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
+ada.err2 <- auto.ada(matrix(c(1, 0.5, 0.1, 0.5), ncol=2, byrow=TRUE),
+                     control=ada.stump, plot=FALSE, metrics=TRUE)
+```
+
+```{r}
+ada.stump.params[c(2,3,4)] <- c(901, 0.1, 0.5)  # add M*, nu*, pi*
 ```
 
 Considerare che le performance del subsampling sono influenzate dal seed. In un contesto reale andrebbe fatta una simulazione per vedere l'errore medio
@@ -491,8 +494,16 @@ In letteratura non viene evidenziata un'esplicita dipendenza dei parametri, ci s
 - Il subsampling abbassa il CV error
 
 ```{r}
+### Training error
+plot.ada(cbind(ada.err1[,c(1,2)], ada.err2[,c(1,2)]),
+         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]),
+         ylab="Training error rate")
+
+### CV error
 # pdf("./plots/biasvar-ada1-apple.pdf")
-plot.ada(cbind(ada.err1[,-c(1,2)], ada.err2[,-c(1,2)]), main="Bias-Variance tradeoff d=1")
+plot.ada(cbind(ada.err1[,-c(1,2)], ada.err2[,-c(1,2)]),
+         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]),,
+         ylab="CV error rate")
 # dev.off()
 ```
 
@@ -501,17 +512,19 @@ plot.ada(cbind(ada.err1[,-c(1,2)], ada.err2[,-c(1,2)]), main="Bias-Variance trad
 Tune the shrinkage
 
 ```{r}
-ada.err3 <- auto.ada(matrix(c(10, 1, 1,
-                              10, 0.1, 1),
-                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
+ada.err3 <- auto.ada(matrix(c(1, 1, 0.1, 1), ncol=2, byrow=TRUE),
+                     control=ada.depth, plot=FALSE, metrics=TRUE)
 ```
 
 Tune the shrinkage with subsampling fraction
 
 ```{r}
-ada.err4 <- auto.ada(matrix(c(10, 1, 0.5,
-                              10, 0.1, 0.5),
-                            ncol=3, byrow=TRUE), plot=FALSE, metrics=TRUE)
+ada.err4 <- auto.ada(matrix(c(1, 0.5, 0.1, 0.5), ncol=2, byrow=TRUE),
+                     control=ada.depth, plot=FALSE, metrics=TRUE)
+```
+
+```{r}
+ada.depth.params[c(2,3,4)] <- c(828, 0.1, 0.5)  # add M*, nu*, pi*
 ```
 
 I subsampling migliora notevolmente le performance dello shrinkage, combinare questi due parametri ha grande influenza sulle performance
@@ -519,8 +532,16 @@ I subsampling migliora notevolmente le performance dello shrinkage, combinare qu
 Aumentare la profondità degli alberi implica, in questo caso, un maggior numero di iterazioni, ma non è vero in generale
 
 ```{r}
+### Training error
+plot.ada(cbind(ada.err3[,c(1,2)], ada.err4[,c(1,2)]),
+         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]),
+         ylab="Training error rate")
+
+### CV error
 # pdf("./plots/biasvar-ada2-apple.pdf")
-plot.ada(cbind(ada.err3[,-c(1,2)], ada.err4[,-c(1,2)]), main="Bias-Variance tradeoff d=10")
+plot.ada(cbind(ada.err3[,-c(1,2)], ada.err4[,-c(1,2)]),
+         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]),
+         ylab="CV error rate")
 # dev.off()
 ```
 
@@ -532,26 +553,22 @@ AdaBoost with decision stumps
 
 ```{r}
 set.seed(111)
-adaboost.opt1 <- ada::ada(x=as.matrix(dat.train[,-target]),
-                         y=dat.train[,target],
-                         test.x=as.matrix(dat.test[,-target]),
-                         test.y=dat.test[,target],
+adaboost.opt1 <- ada::ada(x=as.matrix(dat.train[,-target]), y=dat.train[,target],
+                         test.x=as.matrix(dat.test[,-target]), test.y=dat.test[,target],
                          loss="exponential", type="discrete",
-                         iter=901, nu=0.1, bag.frac=0.5,
-                         control=ada.stump)
+                         iter=ada.stump.params[2], nu=ada.stump.params[3],
+                         bag.frac=ada.stump.params[4], control=ada.stump)
 ```
 
 AdaBoost with base learner of greater depth
 
 ```{r}
 set.seed(111)
-adaboost.opt2 <- ada::ada(x=as.matrix(dat.train[,-target]),
-                         y=dat.train[,target],
-                         test.x=as.matrix(dat.test[,-target]),
-                         test.y=dat.test[,target],
+adaboost.opt2 <- ada::ada(x=as.matrix(dat.train[,-target]), y=dat.train[,target],
+                         test.x=as.matrix(dat.test[,-target]), test.y=dat.test[,target],
                          loss="exponential", type="gentle",
-                         iter=252, nu=0.1, bag.frac=0.5,
-                         control=ada.depth)
+                         iter=ada.depth.params[2], nu=ada.depth.params[3],
+                         bag.frac=ada.depth.params[4], control=ada.depth)
 ```
 
 ```{r}
@@ -580,25 +597,29 @@ first.metrics(dat.train$Outcome,
 Variable importance for decision stump
 
 ```{r}
-boost.avgvip1 <- adaboost.vip(target, dat.train, 1, 901, 0.1, 0.5)
+boost.avgvip1 <- adaboost.vip(target, dat.train, ada.stump.params[2],
+                              ada.stump.params[3], ada.stump.params[4])
 boost.avgvip1 <- sort(boost.avgvip1)
 ```
 
 Variable importance for bigger trees
 
 ```{r}
-boost.avgvip2 <- adaboost.vip(target, dat.train, 10, 152, 0.1, 0.5)
+boost.avgvip2 <- adaboost.vip(target, dat.train, ada.depth.params[2],
+                              ada.depth.params[3], ada.depth.params[4])
 boost.avgvip2 <- sort(boost.avgvip2)
 ```
 
 ```{r}
-pdf("./plots/vip-ada1-apple.pdf")
-plot.ada.vip(boost.avgvip1, main="Average variable importance d=1")
-dev.off()
+# pdf("./plots/vip-ada1-apple.pdf")
+plot.ada.vip(boost.avgvip1, main=paste0("Average variable importance d=",
+                                        ada.stump.params[1]),)
+# dev.off()
 
-pdf("./plots/vip-ada2-apple.pdf")
-plot.ada.vip(boost.avgvip2, main="Average variable importance d=10")
-dev.off()
+# pdf("./plots/vip-ada2-apple.pdf")
+plot.ada.vip(boost.avgvip2, main=paste0("Average variable importance d=",
+                                        ada.depth.params[1]),)
+# dev.off()
 ```
 
 
@@ -614,12 +635,7 @@ Learners:
 - `SL.rpart`
 - `SL.rpartPrune`
 - `SL.glmnet`
-- `SL.gbm`??
-
-```{r}
-library(SuperLearner)
-library(parallel)
-```
+- `SL.gbm`
 
 Define learners
 
@@ -634,17 +650,22 @@ my.dt <- create.Learner("SL.rpart", list(minsplit=20, cp=0, xval=5), name_prefix
 my.dtpr <- create.Learner("SL.rpartPrune", list(minsplit=20, cp=0, xval=5), name_prefix="DTpr")
 ## ridge, lasso and elastic-net logistic regression
 my.log <- create.Learner("SL.glmnet", tune=list(alpha=c(0, 1, 0.5)), detailed_names=T, name_prefix="Log")
+## gradient boosting with bernoulli loss
+my.gbm <- create.Learner("SL.gbm", name_prefix="GBM", detailed_names=T,
+                         params=list(gbm.trees=1000, shrinkage=0.1,
+                                     bag.fraction=0.5, cv.folds=5, n.cores=2),
+                         tune=list(interaction.depth=c(1,3)))
 
 myLibrary <- c(my.knn$names, my.rf$names, my.dt$names, my.dtpr$names,
-               my.log$names)
-myLibrary2 <- c(my.rf$names, my.dt$names, my.dtpr$names,
-               my.log$names)
+               my.log$names, my.gbm$names)
+myLibrary2 <- c(my.rf$names, my.dt$names, my.dtpr$names, my.log$names, my.gbm$names)
 
 str(my.rf)
 str(my.knn)
 str(my.dt)
 str(my.dtpr)
 str(my.log)
+str(my.gbm)
 ```
 
 ### Discrete super learners
@@ -729,22 +750,52 @@ first.metrics(dat.train[,target], ifelse(sl.dt$SL.predict>=0.5, 1, 0),
               dat.test[,target], ifelse(predict(sl.dt, dat.test[,-target])$pred>=0.5, 1, 0))
 ```
 
-
-### The super learner
-
-#### Full super learner
+#### Gradient boosting
 
 ```{r}
 cluster = parallel::makeCluster(4)
 
 parallel::clusterSetRNGStream(cluster, iseed=111)
 foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
+parallel::clusterExport(cluster, my.gbm$names)
+
+(sl.gbm <- snowSuperLearner(Y=dat.train[,target], X=dat.train[,-target],
+                             family=binomial(), cluster=cluster, SL.library=my.gbm$names,
+                             cvControl=list(V=10, shuffle=FALSE)))
+sl.gbm$times$everything
+
+parallel::stopCluster(cluster)
+```
+
+```{r}
+print(sl.gbm)
+
+first.metrics(dat.train[,target], ifelse(sl.gbm$SL.predict>=0.5, 1, 0),
+              dat.test[,target], ifelse(predict(sl.gbm, dat.test[,-target])$pred>=0.5, 1, 0))
+```
+
+
+### The super learner
+
+#### Full super learner
+
+```{r}
+myLibrary
+length(myLibrary)
+```
+
+```{r}
+cluster <- parallel::makeCluster(4)
+
+parallel::clusterSetRNGStream(cluster, iseed=111)
+foo <- parallel::clusterEvalQ(cluster, library(SuperLearner))
 parallel::clusterExport(cluster, myLibrary)
 
 (sl.full <- snowSuperLearner(Y=dat.train[,target], X=dat.train[,-target],
-                             family=binomial(), cluster=cluster, SL.library=myLibrary,
+                             family=binomial(), cluster=cluster,
+                             SL.library=c("SL.mean", myLibrary),
                              cvControl=list(V=10, shuffle=FALSE)))
-sl.final$times$everything
+sl.full$times$everything
 
 parallel::stopCluster(cluster)
 ```
@@ -754,10 +805,15 @@ Diagnostic
 ```{r}
 print(sl.full)
 
+# pdf("./plots/SL-full-coef.pdf")
 dotchart(sort(sl.full$coef),
          main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
          col=ifelse(sort(sl.full$coef)==0, "red", "black"))
+# dev.off()
 ```
+
+Si capisce che mettere strong learners eccessivamente complessi, porta l'algoritmo ad assegnare coefficiente 0 a più modelli. Si capisce quindi la logica dietro AdaBoost dei weak learners.
+Più aumenta la complessità degli strong learners, più nel modello finale ce ne saranno meno di strong learners, così il più complesso avrà maggiore influenza.
 
 ```{r}
 sl.full.pred <- predict(sl.full, dat.test[,-target], dat.train[,-target], dat.train[,target])
@@ -777,7 +833,8 @@ parallel::clusterExport(cluster, myLibrary)
 
 system.time({
   sl.full.cv <- CV.SuperLearner(Y=dat.train[,target], X=dat.train[,-target],
-                                family=binomial(), parallel=cluster, SL.library=myLibrary,
+                                family=binomial(), parallel=cluster,
+                                SL.library=c("SL.mean", myLibrary),
                                 cvControl=list(V=5), innerCvControl=list(list(V=10, shuffle=FALSE)))
 })
 
@@ -787,12 +844,41 @@ parallel::stopCluster(cluster)
 ```
 
 ```{r}
-plot(sl.full.cv) + theme_bw()
+# sl.full.cv.summ <- summary(sl.full.cv)
+
+# sl.full.cv.summ$Table$CIinf <- sl.full.cv.summ$Table$Ave - qnorm(0.975)*sl.full.cv.summ$Table$se
+# sl.full.cv.summ$Table$CIsup <- sl.full.cv.summ$Table$Ave + qnorm(0.975)*sl.full.cv.summ$Table$se
+# sl.full.cv.summ$Table
+# 
+# dotchart(sort(sl.full.cv.summ$Table[,2], decreasing=TRUE),
+#          labels=sl.full.cv.summ$Table[,1][order(sl.full.cv.summ$Table[,2], decreasing=TRUE)],
+#          main="Learners 5-fold CV error", pch=19, xlab="CV error", pt.cex=1.5)
+# arrows(
+#   x0 = sl.full.cv.summ$Table$CIinf[order(sl.full.cv.summ$Table[,2], decreasing=TRUE)], 
+#   y0 = 1:dim(sl.full.cv.summ$Table)[1], 
+#   x1 = sl.full.cv.summ$Table$CIsup[order(sl.full.cv.summ$Table[,2], decreasing=TRUE)], 
+#   y1 = 1:dim(sl.full.cv.summ$Table)[1], 
+#   code = 3, 
+#   angle = 90, 
+#   length = 0.05
+# )
+
+
+plot(sl.full.cv) + theme_bw() + geom_pointrange(size=0.8) + ggtitle("5-fold cross-validation")
+# ggsave("./plots/SL-full-cv.pdf")
+
+# pdf("./plots/SL-full-cv.pdf")
+plot.sl.cverr(summary(sl.full.cv))
+# dev.off()
 ```
 
 
-
 #### Reduced super learner
+
+```{r}
+myLibrary2
+length(myLibrary2)
+```
 
 ```{r}
 cluster = parallel::makeCluster(4)
@@ -812,7 +898,7 @@ stopCluster(cluster)
 ```{r}
 print(sl.final)
 
-# pdf("./plots/coef-sl-apple.pdf")
+# pdf("./plots/SL-final-coef.pdf")
 dotchart(sort(sl.final$coef),
          main="Learners influence", pch=19, xlab="Coefficient", pt.cex=1.5,
          col=ifelse(sort(sl.final$coef)==0, "red", "black"), cex.main=1.5)
@@ -838,7 +924,8 @@ parallel::clusterExport(cluster, myLibrary)
 
 system.time({
   sl.final.cv <- CV.SuperLearner(Y=dat.train[,target], X=dat.train[,-target],
-                                family=binomial(), parallel=cluster, SL.library=myLibrary,
+                                family=binomial(), parallel=cluster,
+                                SL.library=c("SL.mean", myLibrary2),
                                 cvControl=list(V=5), innerCvControl=list(list(V=10, shuffle=FALSE)))
 })
 
@@ -848,7 +935,12 @@ parallel::stopCluster(cluster)
 ```
 
 ```{r}
-plot(sl.final.cv) + theme_bw()
+plot(sl.final.cv) + theme_bw() + geom_pointrange(size=0.8) + ggtitle("5-fold cross-validation")
+# ggsave("./plots/SL-final-cv.pdf")
+
+# pdf("./plots/SL-final-cv.pdf")
+plot.sl.cverr(summary(sl.final.cv))
+# dev.off()
 ```
 
 

@@ -1,43 +1,62 @@
 # Statistical Learning final project
 
-## Topic description
+## Topic description and learning methods
 
-Binary classification on apple quality dataset.
+Binary classification on apple quality dataset:
+- **Size**: size of the apple
+- **Weight**: weight of the apple
+- **Sweetness**: how sweet an apple is
+- **Crunchiness**: how crisp the apple is
+- **Juiciness**: how juicy an apple is
+- **Ripeness**: how ripe an apple is
+- **Acidity**: how acid an apple is
+- **Quality**: the quality is *good* or *bad*
 
 Methods:
-- **kNN**, package `FNN` with CV (from scratch) for optimal k.
-- **Regularized logistic regression**
+- **kNN**, package `FNN`
+    - CV (from scratch) for optimal k*
+    - Bias-Variance tradeoff
+- **Regularized logistic regression**, package `glmnet`
     - Ridge
     - Lasso
     - Elastic net
 - **CART** with pruning, package `rpart`
     - Grow the tree without restriction
     - Prune the tree at optimal CV cp
-- **Random forest**, package `randomForest`. Grow the forest with 500 trees. Set `mtry` as floor(sqrt(ncol(x))). Choose the optimal number of trees based on OOB error.
+- **Random forest**, package `randomForest`
+    - `mtry`=`floor(sqrt(ncol(x)))`
+    - Grow B=500 trees, choose optimal B* based on OOB error, plot Bias-Variance tradeoff
     - Variable importance
-- **AdaBoost** with subsampling and shrinkage, package `ada`. CV for selecting optimal number of trees based on CV error (from scratch)
+- **AdaBoost** with subsampling and shrinkage, package `ada`
+    - Run algorithm for M=1000 iterations, choose optimal M* based on CV error (from scratch)
     - Additive model with d=1 (decision stump)
+        - Bias-Variance tradeoff
         - Variable importance
     - d>1 like d=2
+        - Bias-Variance tradeoff
         - Variable importance
-- **Super learner**, package `SuperLearner`.
-    - `SL.mean`: mean over all outcomes, naive guess
-    - `SL.rpart`
-    - `SL.knn`
-    - `SL.randomForest`
-    - `SL.glm`
-    - `SL.glmnet`
-    - `SL.xgboost`
+- **Super learner**, package `SuperLearner`
+    - Strong learners:
+        - `SL.mean`: mean over all outcomes, naive guess
+        - `SL.rpart`: grown CART
+        - `SL.knn`: k-nearest neighbors
+        - `SL.randomForest`: random forest
+        - `SL.glm`: logistic regression
+        - `SL.glmnet`: lasso/ridge/elastic net logistic regression
+        - `SL.gbm`: gradient boosting machine with bernoulli deviance
+    - Compute external CV error with `CV.SuperLearner`
 
 Model performance
 
 | Model         | Train score       | Test score        |
 |---------------|-------------------|-------------------|
 | kNN           | 0.902887139107612 | 0.894973743435859 |
-| CART          | 0.884139482564679 | 0.828957239309827 |
-| Random forest | 0.880764904386952 | 0.888972243060765 |
-| AdaBoost      | 0.983127109111361 | 0.887471867966992 |
-| Super learner | 0.                | 0.                |
-|               | 0.                | 0.                |
+| Grown CART    | 0.884139482564679 | 0.828957239309827 |
+| Pruned CART   | 0.884139482564679 | 0.829014138412355 |
+| Random Forest | 0.880764904386952 | 0.888972243060765 |
+| AdaBoost d=1  | 0.79827521559805  | 0.792198049512378 |
+| AdaBoost d=4  | 0.999625046869141 | 0.884471117779445 |
+| SuperLearner1 | 0.929133858267717 | 0.893473368342086 |
+| SuperLearner2 | 0.98612673415823  | 0.877719429857464 |
 |               | 0.                | 0.                |
 |               | 0.                | 0.                |

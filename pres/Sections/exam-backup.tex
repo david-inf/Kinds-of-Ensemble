@@ -1,5 +1,13 @@
 % !TeX spellcheck = en_GB
 
+\begin{frame}{$k\text{NN}$ and CART tuning}
+
+\sideFigs{biasvar-knn-apple}{cp-tree-apple}
+
+\end{frame}
+
+% ------------------------------- %
+
 \begin{frame}[fragile]{Discrete AdaBoost algorithm}
 % stochastic setting
 % stochastic gradient boosting framework, when bag.frac < 1
@@ -24,6 +32,27 @@ Initialize $f_0(x)=0$\;
 }
 \KwOut{$G(x)=\sign(f_M(x))$}
 \end{algorithm}}
+
+\end{frame}
+
+% ------------------------------- %
+
+\begin{frame}{Variable importance comparison}
+
+\begin{columns}[T]
+\hspace*{-4.1em}%
+\begin{column}{0.3\textwidth}
+	\includegraphics[width=1.5\columnwidth]{vip-rf-apple}
+\end{column}
+\hspace*{-0.4em}%
+\begin{column}{0.3\textwidth}
+	\includegraphics[width=1.5\columnwidth]{vip-ada1-apple}
+\end{column}
+\hspace*{-0.4em}%
+\begin{column}{0.3\textwidth}
+	\includegraphics[width=1.5\columnwidth]{vip-ada2-apple}
+\end{column}
+\end{columns}
 
 \end{frame}
 

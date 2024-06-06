@@ -109,13 +109,26 @@ inner ysep=5pt,inner xsep=0pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
 \SetKw{And}{and}
 \SetKw{Not}{not}
 % ------------------ %
+% ------------------ %
+%% My commands %%
+\newcommand{\sideFigs}[2]{%
+	\begin{columns}[T]
+		\hspace*{-2.4em}\begin{column}{0.5\textwidth}
+			\includegraphics[width=1.23\columnwidth]{#1}
+		\end{column}
+		\begin{column}{0.5\textwidth}
+			\includegraphics[width=1.23\columnwidth]{#2}
+		\end{column}
+	\end{columns}}
+% ------------------ %
+% ------------------ %
 %% Printing the presentation %%
 %\usepackage{pgfpages}
 %\pgfpagesuselayout{4 on 1}[a4paper,border shrink=5mm,landscape]
 % ------------------ %
 %% Presentation cover %%
 %\title{Kinds of Gradient Boosting}
-\title{Kinds of Ensembles}
+\title{Kinds of Ensemble}
 \subtitle{Tested on apple quality dataset}
 \author{David Nardi}
 \date{June 11, 2024}
@@ -136,6 +149,8 @@ inner ysep=5pt,inner xsep=0pt,outer sep=0pt,fill=mLightBrown!20,font=\small]
 
 % ------------------------------- %
 \input{./Sections/intro.tex}
+\input{./Sections/suplearn.tex}
+\input{./Sections/res.tex}
 % ------------------------------- %
 %\appendix
 %{\setbeamercolor{palette primary}{fg=black,bg=white}
