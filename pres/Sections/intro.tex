@@ -321,30 +321,39 @@ ada::ada(x, y,
 
 \begin{frame}{Variable importance comparison}
 
-% TODO: rectangular box for Crunchiness (lightbrown) and Ripeness (lightgreen)
+% random forest dà più importanza alla succosità e allo stato di maturazione
+% adaboost dà più importanza alla croccantezza, caratteristica che una mela marcia perde, come la dolcezza
 
 \begin{columns}[T]
 \hspace*{-4.2em}%
 \begin{column}{0.3\textwidth}
 	\begin{tikzpicture}
 		\tikzset{help lines/.append style=pink}
-		%		\draw[help lines] (0,0) grid (5,5); \node[draw,circle,fill=red] at (0,0) {};
-		\node[immagine] (img) at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-rf-apple}};
+%		\draw[help lines] (0,0) grid (5,5); \node[draw,circle,fill=red] at (0,0) {};
+		\node[immagine] (img) at (0,0) {\includegraphics[width=1.47\columnwidth]{vip-rf-apple}};
 		\node[font=\small] at ($(img)+(0.3,3)$) {Random Forest};
+		\node[draw,rectangle,inner xsep=0.35cm,inner ysep=0.7ex,mLightBrown,thick] at (0.66,1.13) {};
+		\node[draw,rectangle,inner xsep=0.28cm,inner ysep=0.7ex,mLightGreen,thick] at (0.59,2.89) {};
 	\end{tikzpicture}
 \end{column}
 \hspace*{-0.7em}%
 \begin{column}{0.3\textwidth}
 	\begin{tikzpicture}
-		\node[immagine] at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-ada1-apple}};
+		\tikzset{help lines/.append style=pink}
+%		\draw[help lines] (0,0) grid (5,5); \node[draw,circle,fill=red] at (0,0) {};
+		\node[immagine] at (0,0) {\includegraphics[width=1.47\columnwidth]{vip-ada1-apple}};
 		\node[font=\small] at ($(img)+(0.3,3)$) {$\text{AdaBoost}_{d=1}$};
+		\node[draw,rectangle,inner xsep=0.28cm,inner ysep=0.7ex,mLightGreen,thick] at (0.505,1.135) {};
+		\node[draw,rectangle,inner xsep=0.35cm,inner ysep=0.7ex,mLightBrown,thick] at (0.575,3.77) {};
 	\end{tikzpicture}
 \end{column}
 \hspace*{-0.7em}%
 \begin{column}{0.3\textwidth}
 	\begin{tikzpicture}
-		\node[immagine] at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-ada2-apple}};
+		\node[immagine] at (0,0) {\includegraphics[width=1.47\columnwidth]{vip-ada2-apple}};
 		\node[font=\small] at ($(img)+(0.3,3)$) {$\text{AdaBoost}_{d=4}$};
+		\node[draw,rectangle,inner xsep=0.28cm,inner ysep=0.7ex,mLightGreen,thick] at (0.505,1.135) {};
+		\node[draw,rectangle,inner xsep=0.35cm,inner ysep=0.7ex,mLightBrown,thick] at (0.575,3.77) {};
 	\end{tikzpicture}
 \end{column}
 \end{columns}
