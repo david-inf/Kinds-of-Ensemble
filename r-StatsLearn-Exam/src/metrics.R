@@ -6,17 +6,6 @@ dataset.distrib <- function(y) {
   return(table(y) / length(y))
 }
 
-# histograms
-manyhist <- function(df) {
-  par(mfrow = c(2,2))
-  for (i in 1:ncol(df)) {
-    name = names(df)[i]
-    hist(df[,i], main=name, breaks="FD", ylab="", xlab="",
-         cex.main=2, cex.axis=1.5, las=1)
-  }
-}
-
-
 ## Binary classification metrics
 
 # confusion matrix

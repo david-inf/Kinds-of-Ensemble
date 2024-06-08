@@ -1,5 +1,7 @@
 % !TeX spellcheck = en_GB
 
+\pdfbookmark[1]{Performance}{res}
+
 \begin{frame}{Performance}
 
 % il super learner riesce a prendere il meglio da questi modelli??
@@ -13,10 +15,11 @@
 	\midrule
 	$k\text{NN}$ & 0.902887139107612 & 0.894973743435859 \\
 	CART & 0.884139482564679 & 0.829014138412355 \\
-	Random forest & 0.880764904386952 & 0.888972243060765 \\
+	Random Forest & 0.880764904386952 & 0.888972243060765 \\
 	$\text{AdaBoost}_{d=1}$ & 0.79827521559805 & 0.792198049512378 \\
 	$\text{AdaBoost}_{d=4}$ & 0.999625046869141 & 0.884471117779445 \\
-	Super learner & 0.98612673415823 & 0.877719429857464 \\
+	$\text{Super Learner}_{\text{red}}$ & 0.989876265466817 & 0.878469617404351 \\
+	$\text{Super Learner}_{\text{full}}$ & 0.930258717660292 & 0.889722430607652 \\
 	\bottomrule
 \end{tabular}}
 \end{table}

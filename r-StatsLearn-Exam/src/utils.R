@@ -3,6 +3,17 @@
 ## plotting
 # ********************** #
 
+# histograms
+manyhist <- function(df, window=c(2,2)) {
+  par(mfrow = window)
+  for (i in 1:ncol(df)) {
+    name = names(df)[i]
+    hist(df[,i], main=name, breaks="FD", ylab="", xlab="",
+         cex.main=2, cex.axis=1.5, las=1)
+  }
+}
+
+
 # plot adaboost performance over iterations
 plot.ada <- function(ada.err, ...) {
   # ada.err: errors that one wants to plot
@@ -11,7 +22,7 @@ plot.ada <- function(ada.err, ...) {
   ada.palette <- colorRampPalette(brewer.pal(6, "Dark2"))(n.perf)
   
   matplot(ada.err, type="l", lty=1, lwd=3, log="x",
-          xlab="Rounds of boosting",
+          xlab="Rounds of boosting", ylab="Error rate",
           col=ada.palette, cex.main=1.5, ...)
   
   # abline(h=weak.err, lty=3, lwd=2)

@@ -104,15 +104,15 @@ train.idx <- sample(n, n - floor(n / 3), replace=FALSE)
 
 dat.train <- dat[train.idx,]
 dat.test <- dat[-train.idx,]
+
+manyhist(dat.train[,1:7], c(3,3))
+manyhist(dat.test[,1:7], c(3,3))
+
+dataset.distrib(dat.train[,target])
+dataset.distrib(dat.test[,target])
 ```
 
 
-
-## Performance
-
-```{r}
-
-```
 
 
 
@@ -312,9 +312,13 @@ rf.palette <- colorRampPalette(brewer.pal(5, "Set1"))(4)
 
 # pdf("./plots/biasvar-rf-apple.pdf")
 plot(seq(rf.grown$ntree), rf.grown$err.rate[,"OOB"], type="l", lwd=3,
-     xlab="ntree", ylab="OOB error", col=rf.palette[1],
+     xlab="ntree", ylab="Error rate", col=rf.palette[1], log="x",
      main="Bias-Variance tradeoff", cex.main=1.5)
-abline(v=rf.ntree, lwd=2, lty=2)
+
+abline(v=rf.ntree, lwd=3, lty=2)
+
+legend("topright", legend=c("OOB error", paste0("B*=", rf.ntree)),
+         col=c(rf.palette[1], "black"), lty=c(1,2), lwd=3, cex=1.5, bg="white")
 # dev.off()
 ```
 
@@ -352,11 +356,13 @@ varImpPlot(rf.opt, type=1, pch=19, pt.cex=1.5, cex.main=1.5, main="Variable impo
 
 ```{r}
 # decision stump
-ada.stump <- rpart.control(maxdepth=1, cp=-1, minsplit=0, xval=0)
 ada.stump.params <- c(1)  # d=1
+ada.stump <- rpart.control(maxdepth=ada.stump.params[1],
+                           cp=-1, minsplit=0, xval=0)
 # bigger depth
-ada.depth <- rpart.control(maxdepth=4, cp=-1, maxcompete=1, xval=0)
 ada.depth.params <- c(4)  # d=4
+ada.depth <- rpart.control(maxdepth=ada.depth.params[1],
+                           cp=-1, maxcompete=1, xval=0)
 
 str(rpart.control())
 str(ada.stump)
@@ -496,14 +502,15 @@ In letteratura non viene evidenziata un'esplicita dipendenza dei parametri, ci s
 ```{r}
 ### Training error
 plot.ada(cbind(ada.err1[,c(1,2)], ada.err2[,c(1,2)]),
-         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]),
-         ylab="Training error rate")
+         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]))
 
 ### CV error
 # pdf("./plots/biasvar-ada1-apple.pdf")
 plot.ada(cbind(ada.err1[,-c(1,2)], ada.err2[,-c(1,2)]),
-         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]),,
-         ylab="CV error rate")
+         main=paste0("Bias-Variance tradeoff d=", ada.stump.params[1]))
+abline(h=tree.err, lty=3, lwd=2)
+text(x=20, y=tree.err*0.96, cex=1.3,
+     paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
 # dev.off()
 ```
 
@@ -534,14 +541,15 @@ Aumentare la profondità degli alberi implica, in questo caso, un maggior numero
 ```{r}
 ### Training error
 plot.ada(cbind(ada.err3[,c(1,2)], ada.err4[,c(1,2)]),
-         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]),
-         ylab="Training error rate")
+         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]))
 
 ### CV error
 # pdf("./plots/biasvar-ada2-apple.pdf")
 plot.ada(cbind(ada.err3[,-c(1,2)], ada.err4[,-c(1,2)]),
-         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]),
-         ylab="CV error rate")
+         main=paste0("Bias-Variance tradeoff d=", ada.depth.params[1]))
+abline(h=tree.err, lty=3, lwd=2)
+text(x=5, y=tree.err*0.96, cex=1.3,
+     paste0(sum(tree.pr$frame$var == "<leaf>"), "-node tree"))
 # dev.off()
 ```
 
@@ -654,7 +662,8 @@ my.log <- create.Learner("SL.glmnet", tune=list(alpha=c(0, 1, 0.5)), detailed_na
 my.gbm <- create.Learner("SL.gbm", name_prefix="GBM", detailed_names=T,
                          params=list(gbm.trees=1000, shrinkage=0.1,
                                      bag.fraction=0.5, cv.folds=5, n.cores=2),
-                         tune=list(interaction.depth=c(1,3)))
+                         tune=list(interaction.depth=c(ada.stump.params[1],
+                                                       ada.depth.params[1])))
 
 myLibrary <- c(my.knn$names, my.rf$names, my.dt$names, my.dtpr$names,
                my.log$names, my.gbm$names)

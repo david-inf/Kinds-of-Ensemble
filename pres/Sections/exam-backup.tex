@@ -8,6 +8,85 @@
 
 % ------------------------------- %
 
+%\begin{frame}[fragile]{Random forest}
+%
+%\begin{columns}[T]
+%\begin{column}{0.7\textwidth}
+%\begin{figure}
+%\centering
+%\hspace*{1em}\vspace*{-0.5em}%
+%\begin{tikzpicture}
+%	%draw,ellipse,fill=red!20,minimum height=2em,text centered,font=\sffamily\small
+%	\tikzset{help lines/.append style=pink}
+%	%	\draw [help lines] (-1,-4) grid (7,2); \node[draw,circle,fill=red] at (0,0) {};
+%	
+%	\node[cloud3] (b1) at (0,0) {$\pi_1, m_1$};
+%	\node[cloud3] (b2) at ($(b1)+(1.8,0)$) {$\pi_2, m_2$};
+%	\node[cloud3] (B) at ($(b2)+(3,0)$) {$\pi_B, m_B$};
+%	\draw[-,dotted,very thick] (b1) to (b2);
+%	\draw[-,dotted,very thick] (b2) to (B);
+%	
+%	\node[] (T1) at ($(b1)+(0,-1.3)$) {$T_1$};
+%	\node[] (T2) at ($(b2)+(0,-1.3)$) {$T_2$};
+%	\node[] (TB) at ($(B)+(0,-1.3)$) {$T_B$};
+%	\draw[-stealth] ($(b1.south)+(0,-0.15)$) to (T1);
+%	\draw[-stealth] ($(b2.south)+(0,-0.15)$) to (T2);
+%	\draw[-stealth] ($(B.south)+(0,-0.15)$) to (TB);
+%	
+%	\begingroup\linespread{0.9}
+%	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (m) at (3.3,0.7) {random predictors};
+%	\node[font=\footnotesize,text width=4em,centered,text centered,inner sep=0pt] (pi) at (3.1,-1.2) {random subsample};
+%	\endgroup
+%	\draw[-stealth] (m) to ($(b2.east)+(-0.2,0.1)$);
+%	\draw[-stealth] (pi) to ($(b2.south)+(-0.1,0.25)$);
+%	
+%	\node[rectangle,fill=mLightGreen!20,font=\large,right] (G) at (-0.8,-3) {$G(x)=\argmax_k\sum_{b=1}^B\mathbb{I}(T_b(x)=k)$};
+%	\node[rectangle,fill=red!20,font=\large,right] (mtry) at ($(G.west)+(0,-1)$) {$\mathtt{mtry}=\lfloor\sqrt{p}\rfloor$};
+%\end{tikzpicture}
+%\end{figure}
+%\end{column}
+%\hspace*{1em}\begin{column}{0.4\textwidth}
+%\begin{lstlisting}
+%randomForest(x, y,
+%importance=TRUE,
+%ntree=500,
+%ntree=B.oob£!$\,\alert{\leftarrow}B^\ast$!£)
+%\end{lstlisting}
+%
+%\vspace{1em}Loss-based variable importance
+%
+%%\hspace*{-0.8em}\includegraphics[width=1.1\columnwidth]{../r-StatsLearn-Exam/src/plots/biasvar-rf-apple}
+%
+%\end{column}
+%\end{columns}
+%
+%\end{frame}
+
+\begin{frame}{Random forest variable importance}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{vip-rf-apple}
+\end{center}
+
+\end{frame}
+
+\begin{frame}{AdaBoost variable importance}
+
+\begin{columns}[T]
+\hspace*{-3.9em}%
+\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.25\columnwidth]{vip-ada1-apple}
+\end{column}
+\hspace*{-1em}%
+\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.25\columnwidth]{vip-ada2-apple}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ------------------------------- %
+
 \begin{frame}[fragile]{Discrete AdaBoost algorithm}
 % stochastic setting
 % stochastic gradient boosting framework, when bag.frac < 1
@@ -37,24 +116,35 @@ Initialize $f_0(x)=0$\;
 
 % ------------------------------- %
 
-\begin{frame}{Variable importance comparison}
-
-\begin{columns}[T]
-\hspace*{-4.1em}%
-\begin{column}{0.3\textwidth}
-	\includegraphics[width=1.5\columnwidth]{vip-rf-apple}
-\end{column}
-\hspace*{-0.4em}%
-\begin{column}{0.3\textwidth}
-	\includegraphics[width=1.5\columnwidth]{vip-ada1-apple}
-\end{column}
-\hspace*{-0.4em}%
-\begin{column}{0.3\textwidth}
-	\includegraphics[width=1.5\columnwidth]{vip-ada2-apple}
-\end{column}
-\end{columns}
-
-\end{frame}
+%\begin{frame}{Variable importance comparison}
+%
+%\begin{columns}[T]
+%\hspace*{-4.2em}%
+%\begin{column}{0.3\textwidth}
+%	\begin{tikzpicture}
+%		\tikzset{help lines/.append style=pink}
+%%		\draw[help lines] (0,0) grid (5,5); \node[draw,circle,fill=red] at (0,0) {};
+%		\node[immagine] (img) at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-rf-apple}};
+%		\node[font=\small] at ($(img)+(0,2.8)$) {Random Forest};
+%	\end{tikzpicture}
+%\end{column}
+%\hspace*{-0.7em}%
+%\begin{column}{0.3\textwidth}
+%	\begin{tikzpicture}
+%		\node[immagine] at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-ada1-apple}};
+%		\node[font=\small] at ($(img)+(0,2.8)$) {$\text{AdaBoost}_{d=1}$};
+%	\end{tikzpicture}
+%\end{column}
+%\hspace*{-0.7em}%
+%\begin{column}{0.3\textwidth}
+%	\begin{tikzpicture}
+%		\node[immagine] at (0,0) {\includegraphics[width=1.475\columnwidth]{vip-ada2-apple}};
+%		\node[font=\small] at ($(img)+(0,2.8)$) {$\text{AdaBoost}_{d=4}$};
+%	\end{tikzpicture}
+%\end{column}
+%\end{columns}
+%
+%\end{frame}
 
 % ------------------------------- %
 

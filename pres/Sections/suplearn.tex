@@ -1,11 +1,13 @@
 % !TeX spellcheck = en_GB
 
+\pdfbookmark[1]{Super Learner}{sl}
+
 \begin{frame}{Super Learner flow diagram}
 
 \vspace*{0.25em}%
 \begin{tikzpicture}
 	\tikzset{help lines/.append style=pink}
-	%	\draw [help lines] (-5,-4) grid (6,4); \node[draw,circle,red] at (0,0) {};
+%	\draw [help lines] (-5,-4) grid (6,4); \node[draw,circle,red] at (0,0) {};
 	
 	% start with full training data
 	\node[right,font=\small] (data) at (-5,0) {$\mathcal{D}=\set{(x_i,y_i)}_1^N$};
@@ -19,6 +21,7 @@
 	\node[font=\footnotesize,below] (cross) at (0,-1.5) {
 		$\begin{array}{cccc|c}
 			\hat{\phi}_1 & \hat{\phi}_2 &\dots & \hat{\phi}_K & Y \\
+			\hline
 			1 & 1 & \dots & 1 & 1 \\
 			2 & 2 & \dots & 2 & 2 \\
 			\vdots & \vdots & \ddots & \vdots & \vdots \\
@@ -33,8 +36,8 @@
 	\draw[-latex,bend left,thick,mLightBrown] (full.east) to (pred);
 	%	\draw[-latex,thick,bend right,mLightGreen] (cross) to node[font=\scriptsize,below right,mDarkTeal] {$\argmin_\alpha\sum_{i=1}^NL(Y_i,m(z_i\rvert\alpha))$} (pred);
 	\draw[-latex,thick,bend right,mLightGreen] (cross) to (pred);
-	\node[font=\scriptsize] (alph) at (4,3.3) {$\hat{\alpha}=\argmin_\alpha\sum_{i=1}^NL(Y_i,m(z_i\rvert\alpha))$};
-	\node[font=\scriptsize] at ($(alph)+(0,-0.55)$) {$m(z\rvert\alpha)=\sum_{k=1}^K\alpha_k\hat{\phi}_{k,T(\nu)}\bigl(\boldsymbol{X}_{V(\nu)}\bigr)$};
+	\node[font=\footnotesize] (alph) at (4,3.3) {$\hat{\alpha}=\argmin_\alpha\sum_{i=1}^NL(Y_i,m(z_i\rvert\alpha))$};
+	\node[font=\footnotesize] at ($(alph)+(0,-0.55)$) {$m(z\rvert\alpha)=\sum_{k=1}^K\alpha_k\hat{\phi}_{k,T(\nu)}\bigl(\boldsymbol{X}_{V(\nu)}\bigr)$};
 \end{tikzpicture}
 
 \end{frame}
@@ -96,10 +99,15 @@
 %\vspace*{1cm}%
 \begin{lstlisting}
 SuperLearner(Y, X,
+  family=binomial(),
   cluster,
   SL.library£!$\,\alert{\leftarrow}\set{\phi_k}$!£,
   cvControl=list(
     V=10,shuffle=FALSE))
+\end{lstlisting}
+
+\begin{lstlisting}
+CV.SuperLearner(£!\dots!£)
 \end{lstlisting}
 
 % add the code for the library??
@@ -113,6 +121,7 @@ SuperLearner(Y, X,
 		\item Grown and pruned Decision Tree
 		\item Random Forest
 		\item Gradient Boosting Machine with $d=1$ and $d=4$
+		\item $k\text{NN}$
 	\end{itemize}
 \end{column}
 \end{columns}
@@ -135,13 +144,14 @@ SuperLearner(Y, X,
 %
 %\end{frame}
 		
-\begin{frame}{Super Learner library CV error}
+\begin{frame}{Super Learner CV error (reduced, w/out $k\text{NN}$)}
 
 \begin{columns}[T]
-\hspace*{-3.7em}\begin{column}{0.5\textwidth}
+\hspace*{-4em}%
+\begin{column}{0.5\textwidth}
 	\begin{tikzpicture}
 		%	\draw[help lines] (0,0) grid (6,6); \node[draw,circle,fill=red] at (0,0) {};
-		\node[immagine] at (0,0) {\includegraphics[width=1.28\columnwidth]{../r-StatsLearn-Exam/src/plots/SL-final-coef}};
+		\node[immagine] at (0,0) {\includegraphics[width=1.3\columnwidth]{../r-StatsLearn-Exam/src/plots/SL-final-coef}};
 		
 		\node[font=\large] (phi) at (0.7,6.7) {$\set{\hat{\phi}_k}$};
 		\node[font=\large] (alph) at (2.3,0) {$\hat{\alpha}_k$};
@@ -149,9 +159,34 @@ SuperLearner(Y, X,
 		\draw[-latex,thick] (alph) -- ++(13:1.1);
 	\end{tikzpicture}
 \end{column}
-\hspace*{-0.5em}%
+\hspace*{-0.8em}%
 \begin{column}{0.5\textwidth}
-	\includegraphics[width=1.28\columnwidth]{SL-final-cv}
+	\includegraphics[width=1.3\columnwidth]{SL-final-cv}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ------------------------------- %
+
+\begin{frame}{Super Learner CV error (full)}
+
+\begin{columns}[T]
+\hspace*{-4em}%
+\begin{column}{0.5\textwidth}
+	\begin{tikzpicture}
+		%	\draw[help lines] (0,0) grid (6,6); \node[draw,circle,fill=red] at (0,0) {};
+		\node[immagine] at (0,0) {\includegraphics[width=1.3\columnwidth]{../r-StatsLearn-Exam/src/plots/SL-full-coef}};
+		
+		\node[font=\large] (phi) at (0.7,6.7) {$\set{\hat{\phi}_k}$};
+		\node[font=\large] (alph) at (2.3,0) {$\hat{\alpha}_k$};
+		\draw[-latex,thick] (phi) -- ++(-90:0.8);
+		\draw[-latex,thick] (alph) -- ++(13:1.1);
+	\end{tikzpicture}
+\end{column}
+\hspace*{-0.8em}%
+\begin{column}{0.5\textwidth}
+	\includegraphics[width=1.3\columnwidth]{SL-full-cv}
 \end{column}
 \end{columns}
 
