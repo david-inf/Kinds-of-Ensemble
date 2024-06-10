@@ -229,24 +229,3 @@ adaboost.vip <- function(target, train, M, nu, bag, control=rpart.control(), see
   names(vars.boost) <- sort(names(train[,-target]))  # add variable names
   return(vars.boost)
 }
-
-
-# ********************** #
-## Data generating process generation
-# ********************** #
-
-binary1 <- function(n, p1=0.5, mu0=0, mu1=2, sigma=1) {
-  set.seed(1)
-  Y <- rbinom(n, 1, p1)
-  # Y <- 2 * Y - 1
-  # Y <- factor(Y)
-  n1 <- sum(Y == 1)
-
-  # if Y == 1 generate one sample from X|Y=1
-  # otherwise generate one sample from X|Y=-1
-  X <- matrix(NA, n, 1)
-  X[Y == 1,] <- rnorm(n1, mu1, sigma)
-  X[Y == 0,] <- rnorm(n - n1, mu0, sigma)
-
-  return(as.data.frame(cbind(Y=Y, X1=X[,1])))
-}
