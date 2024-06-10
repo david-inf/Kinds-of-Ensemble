@@ -297,7 +297,7 @@ Diagnostic
 plot(rf.grown, lty=c(1,1,1), lwd=3)
 abline(v=rf.ntree, lwd=3, lty=2)
 
-matplot(cbind(rf.grown$err.rate[,1], rf.err), type="l", lty=1, lwd=3)
+# matplot(cbind(rf.grown$err.rate[,1], rf.err), type="l", lty=1, lwd=3)
 
 rf.palette <- colorRampPalette(brewer.pal(5, "Set1"))(4)
 
